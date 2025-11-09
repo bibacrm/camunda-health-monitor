@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  health-monitor:
+    build: .
+    image: camunda-health-monitor:latest
+    container_name: camunda-health-monitor
+    ports:
+      - "5000:5000"
+    environment:
+      # Database Configuration
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+
+      # Camunda Nodes
+      - CAMUNDA_NODE_1_NAME=${CAMUNDA_NODE_1_NAME}
+      - CAMUNDA_NODE_1_URL=${CAMUNDA_NODE_1_URL}
+      - CAMUNDA_NODE_2_NAME=${CAMUNDA_NODE_2_NAME}
+      - CAMUNDA_NODE_2_URL=${CAMUNDA_NODE_2_URL}
+      - CAMUNDA_NODE_3_NAME=${CAMUNDA_NODE_3_NAME}
+      - CAMUNDA_NODE_3_URL=${CAMUNDA_NODE_3_URL}
+
+      # Camunda Authentication
+      - CAMUNDA_API_USER=${CAMUNDA_API_USER}
+      - CAMUNDA_API_PASSWORD=${CAMUNDA_API_PASSWORD}
+
+      # JMX Endpoints (Optional)
+      - JMX_NODE_1_URL=${JMX_NODE_1_URL}
+      - JMX_NODE_2_URL=${JMX_NODE_2_URL}
+      - JMX_NODE_3_URL=${JMX_NODE_3_URL}
+
+      # Configuration
+      - JVM_METRICS_SOURCE=${JVM_METRICS_SOURCE:-jmx}
+      - STUCK_INSTANCE_DAYS=${STUCK_INSTANCE_DAYS:-7}
+      - PORT=5000
+      - DEBUG=false
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Optional: Use host network mode if monitoring Camunda on localhost
+    # network_mode: host
