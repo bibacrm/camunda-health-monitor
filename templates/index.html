@@ -1132,7 +1132,7 @@
             <template x-if="databaseMetrics && !databaseMetricsLoading">
                 <div class="px-4 pb-4 pt-1 max-h-96 overflow-y-auto custom-scrollbar">
                     <div class="space-y-2" x-show="databaseMetrics.slow_queries && databaseMetrics.slow_queries.length">
-                        <template x-for="query in databaseMetrics.slow_queries" :key="query.full_query">
+                        <template x-for="(query, index) in databaseMetrics.slow_queries" :key="query.full_query + '-' + query.calls + '-' + index">
                             <div class="p-2 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors rounded-lg text-xs font-mono">
                                 <p class="text-gray-800 dark:text-gray-200 truncate"
                                    :title="query.full_query"
@@ -1208,9 +1208,6 @@
             </div>
         </div>
 
-        <div class="mt-4 text-center text-xs text-gray-400 dark:text-gray-500">
-            <p>Licensed for educational, non-profit, and personal use. Commercial use requires a license.</p>
-        </div>
     </div>
 </footer>
 

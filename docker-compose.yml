@@ -9,19 +9,17 @@ services:
       - "5000:5000"
     environment:
       # Database Configuration
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME:-camunda}
+      - DB_USER=${DB_USER:-camunda}
+      - DB_PASSWORD=${DB_PASSWORD:-camunda}
+      - DB_HOST=${DB_HOST:-localhost}
+      - DB_PORT=${DB_PORT:-5432}
 
       # Camunda Nodes
       - CAMUNDA_NODE_1_NAME=${CAMUNDA_NODE_1_NAME}
       - CAMUNDA_NODE_1_URL=${CAMUNDA_NODE_1_URL}
       - CAMUNDA_NODE_2_NAME=${CAMUNDA_NODE_2_NAME}
       - CAMUNDA_NODE_2_URL=${CAMUNDA_NODE_2_URL}
-      - CAMUNDA_NODE_3_NAME=${CAMUNDA_NODE_3_NAME}
-      - CAMUNDA_NODE_3_URL=${CAMUNDA_NODE_3_URL}
 
       # Camunda Authentication
       - CAMUNDA_API_USER=${CAMUNDA_API_USER}
@@ -30,22 +28,37 @@ services:
       # JMX Endpoints (Optional)
       - JMX_NODE_1_URL=${JMX_NODE_1_URL}
       - JMX_NODE_2_URL=${JMX_NODE_2_URL}
-      - JMX_NODE_3_URL=${JMX_NODE_3_URL}
 
-      # Configuration
+      # Application Configuration
       - JVM_METRICS_SOURCE=${JVM_METRICS_SOURCE:-jmx}
       - STUCK_INSTANCE_DAYS=${STUCK_INSTANCE_DAYS:-7}
-      - PORT=5000
-      - DEBUG=false
+      - PORT=${PORT:-5000}
+      - DEBUG=${DEBUG:-false}
+      - JSON_LOGGING=${JSON_LOGGING:-false}
+      - SSL_VERIFY=${SSL_VERIFY:-false}
+
+    volumes:
+      # Persist logs
+      - ./logs:/app/logs
 
     restart: unless-stopped
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/api/health', timeout=5)"]
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
-    # Optional: Use host network mode if monitoring Camunda on localhost
+    # Uncomment to use host network mode if monitoring Camunda on localhost
     # network_mode: host
+
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M

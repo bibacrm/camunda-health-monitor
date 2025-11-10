@@ -1,7 +1,7 @@
 """
 Gunicorn configuration file for Camunda Health Monitor
 
-Copyright (c) 2025 Champa Intelligence (https://champa-bpmn.com)
+Copyright (c) 2024-2025 Champa Intelligence (https://champa-bpmn.com)
 """
 
 import multiprocessing
@@ -12,12 +12,14 @@ bind = f"0.0.0.0:{os.getenv('PORT', '5000')}"
 backlog = 2048
 
 # Worker processes
-workers = int(os.getenv('GUNICORN_WORKERS', multiprocessing.cpu_count() * 2 + 1))
+# For I/O-bound applications like this, use (2 x CPU cores) + 1
+max_workers = multiprocessing.cpu_count() * 2 + 1
+workers = int(os.getenv('GUNICORN_WORKERS', max_workers if max_workers < 16 else 16))
 worker_class = 'sync'
 worker_connections = 1000
 max_requests = 1000
 max_requests_jitter = 50
-timeout = 120
+timeout = 120  # Longer timeout for health collection operations
 keepalive = 5
 
 # Logging
@@ -37,27 +39,45 @@ user = None
 group = None
 tmp_upload_dir = None
 
-# SSL (if needed)
+# SSL (if needed in future)
 # keyfile = '/path/to/key.pem'
 # certfile = '/path/to/cert.pem'
 
-# Preload app for better performance
+# Preload app for better performance and memory usage
 preload_app = True
+
 
 # Server hooks
 def on_starting(server):
     """Called just before the master process is initialized."""
-    print("Starting Camunda Health Monitor...")
+    print("=" * 60)
+    print("Starting Camunda Health Monitor with Gunicorn...")
+    print(f"Workers: {workers}")
+    print(f"Bind: {bind}")
+    print("=" * 60)
 
-def on_reload(server):
-    """Called when the server is being reloaded."""
-    print("Reloading Camunda Health Monitor...")
 
 def when_ready(server):
     """Called just after the server is started."""
     print(f"Camunda Health Monitor ready on {bind}")
     print(f"Workers: {workers}")
     print(f"Timeout: {timeout}s")
+
+
+def on_reload(server):
+    """Called to recycle workers during a reload via SIGHUP."""
+    print("Reloading Camunda Health Monitor...")
+
+
+def worker_int(worker):
+    """Called just after a worker exited on SIGINT or SIGQUIT."""
+    print(f"Worker {worker.pid} received INT or QUIT signal")
+
+
+def worker_abort(worker):
+    """Called when a worker received the SIGABRT signal."""
+    print(f"Worker {worker.pid} received SIGABRT signal")
+
 
 def on_exit(server):
     """Called just before exiting."""

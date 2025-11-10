@@ -1,26 +1,37 @@
 """
 Camunda 7 Health Monitor
 A lightweight monitoring dashboard for Camunda BPM Platform clusters
-
 Copyright (c) 2025 Champa Intelligence (https://champa-bpmn.com)
-Licensed for educational, non-profit, and personal use only.
-Commercial use requires a separate license - contact info@champa-bpmn.com
 """
 import os
 import time
 import concurrent.futures
 import logging
 from logging.handlers import RotatingFileHandler
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
+from functools import wraps
 import requests
-import psycopg2
+from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template, jsonify
 from dotenv import load_dotenv
+import urllib3
 
 # Load environment variables
 load_dotenv()
+
+# Disable SSL warnings only if SSL verification is disabled
+if os.getenv('SSL_VERIFY', 'false').lower() != 'true':
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Try to import JSON logger, fallback to standard if not available
+try:
+    from pythonjsonlogger import jsonlogger
+    JSON_LOGGING_AVAILABLE = True
+except ImportError:
+    jsonlogger = None  # Define jsonlogger in except block
+    JSON_LOGGING_AVAILABLE = False
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -33,11 +44,22 @@ app = Flask(__name__)
 if not os.path.exists('logs'):
     os.makedirs('logs')
 
-# Configure logging
-log_formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+# Determine if JSON logging should be used
+USE_JSON_LOGGING = os.getenv('JSON_LOGGING', 'false').lower() == 'true' and JSON_LOGGING_AVAILABLE
+
+# Configure logging format
+if USE_JSON_LOGGING:
+    log_formatter = jsonlogger.JsonFormatter(
+        '%(asctime)s %(name)s %(levelname)s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    logger_info_msg = "Using structured JSON logging"
+else:
+    log_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    logger_info_msg = "Using standard text logging"
 
 # File handler with rotation (50MB max, keep 5 backups)
 file_handler = RotatingFileHandler(
@@ -64,6 +86,9 @@ logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 logger.setLevel(logging.INFO)
 
+# Log the logging configuration
+logger.info(logger_info_msg)
+
 # ============================================================
 # Configuration from Environment Variables
 # ============================================================
@@ -73,7 +98,9 @@ DB_CONFIG = {
     'user': os.getenv('DB_USER', 'camunda'),
     'password': os.getenv('DB_PASSWORD', 'camunda'),
     'host': os.getenv('DB_HOST', 'localhost'),
-    'port': os.getenv('DB_PORT', '5432')
+    'port': os.getenv('DB_PORT', '5432'),
+    'connect_timeout': 20,
+    'options': '-c statement_timeout=30000'  # 30 second query timeout
 }
 
 # Load Camunda nodes from environment
@@ -110,6 +137,45 @@ if camunda_user and camunda_pass:
 JVM_METRICS_SOURCE = os.getenv('JVM_METRICS_SOURCE', 'jmx')
 STUCK_INSTANCE_DAYS = int(os.getenv('STUCK_INSTANCE_DAYS', '7'))
 
+# SSL Verification - Set to 'false' for self-signed certificates
+SSL_VERIFY = os.getenv('SSL_VERIFY', 'false').lower() == 'true'
+
+# ============================================================
+# Configuration Validation
+# ============================================================
+
+
+def validate_config():
+    """Validate required configuration on startup"""
+    required_vars = {
+        'DB_HOST': DB_CONFIG['host'],
+        'DB_NAME': DB_CONFIG['dbname'],
+        'DB_USER': DB_CONFIG['user'],
+        'DB_PASSWORD': DB_CONFIG['password']
+    }
+
+    missing = [var for var, value in required_vars.items()
+               if not value or value == var.lower().replace('_', '')]
+
+    if missing:
+        error_msg = f"Missing or default required environment variables: {', '.join(missing)}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    if not CAMUNDA_NODES:
+        logger.warning("No Camunda nodes configured, using defaults")
+
+    logger.info("Configuration validation passed")
+
+
+# Validate configuration on startup
+try:
+    validate_config()
+except ValueError as e:
+    logger.error(f"Configuration validation failed: {e}")
+    # Continue with defaults for development, but log the issue
+
+
 logger.info("=" * 60)
 logger.info("Camunda Health Monitor Starting")
 logger.info("=" * 60)
@@ -120,16 +186,71 @@ for name, url in CAMUNDA_NODES.items():
 logger.info(f"Database: {DB_CONFIG['user']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}")
 logger.info(f"JVM Metrics Source: {JVM_METRICS_SOURCE}")
 logger.info(f"JMX Endpoints: {len(JMX_ENDPOINTS)} configured")
+logger.info(f"SSL Verification: {'Enabled' if SSL_VERIFY else 'Disabled (accepting self-signed certificates)'}")
 logger.info("=" * 60)
 
 
 # ============================================================
-# Database Connection
+# Database Connection Pooling
 # ============================================================
 
+# Initialize connection pool (min 1, max 20 connections)
+db_pool = None
+
+
+def init_db_pool():
+    """Initialize the database connection pool"""
+    global db_pool
+    try:
+        db_pool = pool.SimpleConnectionPool(
+            1,  # minconn
+            20,  # maxconn
+            **DB_CONFIG,
+        )
+        logger.info("Database connection pool initialized (1-20 connections)")
+
+        # Test the pool
+        test_conn = db_pool.getconn()
+        test_cursor = test_conn.cursor()
+        test_cursor.execute("SELECT 1")
+        test_cursor.close()
+        db_pool.putconn(test_conn)
+        logger.info("Database pool test successful")
+    except Exception as e:
+        logger.error(f"Failed to initialize database pool: {e}")
+        raise
+
+
 def get_db_connection():
-    """Get a database connection"""
-    return psycopg2.connect(**DB_CONFIG)
+    """Get a database connection from the pool with health check"""
+    if db_pool is None:
+        init_db_pool()
+    try:
+        conn = db_pool.getconn()
+        # Validate connection is still alive
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.close()
+        except Exception as e:
+            # Connection is bad, close it and get a new one
+            logger.debug(f"Stale connection detected, replacing: {e}")
+            try:
+                conn.close()
+            except:
+                pass
+            conn = db_pool.getconn()
+        return conn
+    except Exception as e:
+        logger.error(f"Failed to get connection from pool: {e}")
+        raise
+
+
+def release_db_connection(conn):
+    """Return a connection to the pool"""
+    if db_pool and conn:
+        # noinspection PyUnresolvedReferences
+        db_pool.putconn(conn)
 
 
 def execute_query(query, params=None):
@@ -146,22 +267,140 @@ def execute_query(query, params=None):
         else:
             cursor.execute(query)
 
-        # Check if this is a SELECT query
-        if query.strip().upper().startswith('SELECT'):
+        # Check if query returned results (for SELECT queries)
+        if cursor.description:
             results = cursor.fetchall()
             # Convert RealDictRow to regular dict explicitly
             return [dict(row) for row in results] if results else []
         else:
+            # Non-SELECT query (INSERT, UPDATE, DELETE, etc.)
             conn.commit()
             return []
     except Exception as e:
         logger.error(f"Database query error: {e}", exc_info=True)
+        # Rollback on error
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        # Mark connection as bad - don't return to pool
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+            conn = None  # Prevent returning to pool in finally block
         return []
     finally:
         if cursor:
-            cursor.close()
+            try:
+                cursor.close()
+            except:
+                pass
         if conn:
-            conn.close()
+            release_db_connection(conn)
+
+
+# Initialize database connection pool
+try:
+    init_db_pool()
+except Exception as e:
+    logger.error(f"Failed to initialize database pool: {e}")
+    logger.error("Application will attempt to connect on first request")
+
+# ============================================================
+# Circuit Breaker for Error Recovery
+# ============================================================
+
+class CircuitBreaker:
+    """Circuit breaker pattern for handling external service failures"""
+
+    def __init__(self, failure_threshold=5, timeout=60):
+        self.failure_count = 0
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout  # seconds
+        self.last_failure_time = None
+        self.state = 'CLOSED'  # CLOSED, OPEN, HALF_OPEN
+
+    def call(self, func, *args, **kwargs):
+        """Execute function with circuit breaker protection"""
+        if self.state == 'OPEN':
+            if self.last_failure_time and \
+               datetime.now() - self.last_failure_time > timedelta(seconds=self.timeout):
+                self.state = 'HALF_OPEN'
+                logger.info(f"Circuit breaker entering HALF_OPEN state")
+            else:
+                raise Exception(f"Circuit breaker is OPEN (failures: {self.failure_count})")
+
+        try:
+            result = func(*args, **kwargs)
+            self.on_success()
+            return result
+        except Exception as e:
+            self.on_failure()
+            raise e
+
+    def on_success(self):
+        """Reset circuit breaker on successful call"""
+        if self.state == 'HALF_OPEN':
+            logger.info("Circuit breaker reset to CLOSED after successful call")
+        self.failure_count = 0
+        self.state = 'CLOSED'
+
+    def on_failure(self):
+        """Increment failure count and open circuit if threshold reached"""
+        self.failure_count += 1
+        self.last_failure_time = datetime.now()
+        if self.failure_count >= self.failure_threshold:
+            self.state = 'OPEN'
+            logger.warning(f"Circuit breaker OPEN after {self.failure_count} failures")
+
+
+# Create circuit breakers for external services
+api_circuit_breaker = CircuitBreaker(failure_threshold=5, timeout=60)
+jmx_circuit_breaker = CircuitBreaker(failure_threshold=3, timeout=30)
+
+
+# ============================================================
+# Caching for Expensive Queries
+# ============================================================
+
+def timed_cache(seconds=60):
+    """Cache decorator with time-based expiration"""
+    def decorator(func):
+        cache = {}
+        cache_time = {}
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Create cache key from function arguments
+            key = str(args) + str(kwargs)
+
+            # Check if cached value exists and is still valid
+            if key in cache and key in cache_time:
+                if datetime.now() - cache_time[key] < timedelta(seconds=seconds):
+                    logger.debug(f"Cache hit for {func.__name__}")
+                    return cache[key]
+
+            # Execute function and cache result
+            logger.debug(f"Cache miss for {func.__name__}, executing...")
+            result = func(*args, **kwargs)
+            cache[key] = result
+            cache_time[key] = datetime.now()
+
+            # Clean old cache entries (keep cache size manageable)
+            if len(cache) > 100:
+                oldest_key = min(cache_time.keys(), key=lambda k: cache_time[k])
+                del cache[oldest_key]
+                del cache_time[oldest_key]
+
+            return result
+
+        wrapper.cache_clear = lambda: cache.clear() or cache_time.clear()
+        return wrapper
+
+    return decorator
 
 
 # ============================================================
@@ -202,11 +441,15 @@ def collect_jmx_metrics():
 
     def fetch_jmx(name, url):
         try:
-            response = requests.get(url, auth=CAMUNDA_AUTH, timeout=10)
+            # Use circuit breaker for JMX calls
+            response = jmx_circuit_breaker.call(
+                requests.get, url, auth=CAMUNDA_AUTH, timeout=10, verify=SSL_VERIFY
+            )
             if response.status_code == 200:
                 return name, parse_prometheus_metrics(response.text)
             return name, {'error': f'HTTP {response.status_code}'}
         except Exception as e:
+            logger.warning(f"JMX collection failed for {name}: {e}")
             return name, {'error': str(e)}
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(JMX_ENDPOINTS)) as executor:
@@ -394,7 +637,10 @@ def extract_jvm_health_metrics(jmx_data):
                 'system_load': system_load,
                 'memory_free_mb': free_memory / 1024 / 1024,
                 'memory_total_mb': total_memory / 1024 / 1024,
-                'memory_utilization_pct': ((total_memory - free_memory) / total_memory * 100) if total_memory > 0 else 0
+                'memory_utilization_pct': (
+                    ((total_memory - free_memory) / total_memory * 100)
+                    if total_memory > 0 else 0
+                )
             },
             'file_descriptors': {
                 'open': open_fds,
@@ -441,7 +687,7 @@ def fetch_node_data(node_name, node_url, jmx_data):
 
     try:
         start_time = time.time()
-        response = requests.get(f"{node_url}/engine", auth=CAMUNDA_AUTH, timeout=10)
+        response = requests.get(f"{node_url}/engine", auth=CAMUNDA_AUTH, timeout=10, verify=SSL_VERIFY)
         response.raise_for_status()
         engines = response.json()
 
@@ -453,25 +699,30 @@ def fetch_node_data(node_name, node_url, jmx_data):
             return node_metrics
 
         node_metrics["status"] = "RUNNING"
+        # noinspection PyTypeChecker
         node_metrics["jvm_status"] = node_metrics["jvm_metrics"].get('status', 'UNKNOWN')
 
         # Collect additional metrics in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            # noinspection PyTypeChecker
             ext_tasks_active_future = executor.submit(
                 requests.get, f"{node_url}/external-task/count?locked=true",
-                auth=CAMUNDA_AUTH, timeout=10
+                auth=CAMUNDA_AUTH, timeout=10, verify=SSL_VERIFY
             )
+            # noinspection PyTypeChecker
             ext_tasks_failed_future = executor.submit(
                 requests.get, f"{node_url}/external-task/count?noRetriesLeft=true",
-                auth=CAMUNDA_AUTH, timeout=10
+                auth=CAMUNDA_AUTH, timeout=10, verify=SSL_VERIFY
             )
+            # noinspection PyTypeChecker
             incidents_future = executor.submit(
                 requests.get, f"{node_url}/incident/count",
-                auth=CAMUNDA_AUTH, timeout=10
+                auth=CAMUNDA_AUTH, timeout=10, verify=SSL_VERIFY
             )
+            # noinspection PyTypeChecker
             metrics_future = executor.submit(
                 requests.get, f"{node_url}/engine/default/metrics",
-                auth=CAMUNDA_AUTH, timeout=10
+                auth=CAMUNDA_AUTH, timeout=10, verify=SSL_VERIFY
             )
 
             # Process external tasks
@@ -578,6 +829,7 @@ def fetch_node_data(node_name, node_url, jmx_data):
 # Database Analytics
 # ============================================================
 
+@timed_cache(seconds=120)  # Cache for 2 minutes
 def collect_database_metrics():
     """Collect database performance and storage metrics"""
     try:
@@ -589,6 +841,7 @@ def collect_database_metrics():
             ORDER BY size_bytes DESC
             LIMIT 10
         """)
+
         # Archivable instances
         archivable = execute_query("""
             SELECT count(*) AS count
@@ -598,19 +851,22 @@ def collect_database_metrics():
         """)
 
         # Slow queries (requires pg_stat_statements extension)
+        # Wrap in separate try-catch to prevent entire function failure
         slow_queries = []
         try:
             slow_queries = execute_query("""
-                SELECT calls, mean_exec_time AS avg_ms, max_exec_time AS max_ms,
-                       query as full_query, left(query, 120) AS query_preview
+                SELECT calls, 
+                       ROUND(mean_exec_time::numeric, 2) AS avg_ms, 
+                       ROUND(max_exec_time::numeric, 2) AS max_ms,
+                       LEFT(query, 120) AS query_preview
                 FROM pg_stat_statements
                 WHERE query LIKE '%act_%'
                 ORDER BY mean_exec_time DESC
                 LIMIT 10
             """)
-        except:
-            logger.warning(f"Slow queries error: {e}")
-            pass  # pg_stat_statements not enabled
+        except Exception as e:
+            logger.debug(f"Slow queries collection skipped: {e}")
+            # Don't log as warning since pg_stat_statements is optional
 
         return {
             "table_sizes": table_sizes,
@@ -634,7 +890,6 @@ def collect_engine_health():
     """Collect comprehensive engine health metrics"""
     logger.info(f"Collecting health metrics...")
     collection_start = time.time()
-
 
     # Initialize metrics
     cluster_status = {
@@ -662,24 +917,48 @@ def collect_engine_health():
         "jobs_executed_total": 0
     }
 
-    # Collect JMX metrics if endpoints configured
+    # Collect JMX metrics and node data in parallel
     jmx_data = {}
-    if JMX_ENDPOINTS:
-        raw_jmx = collect_jmx_metrics()
-        # Extract JVM health based on source type
-        for name, raw_metrics in raw_jmx.items():
-            if JVM_METRICS_SOURCE == 'micrometer':
-                jmx_data[name] = extract_jvm_health_metrics_quarkus(raw_metrics)
-            else:
-                jmx_data[name] = extract_jvm_health_metrics(raw_metrics)
 
-    # Collect node data in parallel
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(CAMUNDA_NODES)) as executor:
-        futures = [
-            executor.submit(fetch_node_data, name, url, jmx_data)
+    # Use ThreadPoolExecutor to parallelize JMX collection and node data collection
+    max_workers = len(CAMUNDA_NODES) + len(JMX_ENDPOINTS) if JMX_ENDPOINTS else len(CAMUNDA_NODES)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit JMX collection tasks if endpoints configured
+        jmx_futures = {}
+        if JMX_ENDPOINTS:
+            raw_jmx_future = executor.submit(collect_jmx_metrics)
+
+        # Submit node data collection tasks (initially with empty JMX data)
+        node_futures = [
+            executor.submit(fetch_node_data, name, url, {})
             for name, url in CAMUNDA_NODES.items()
         ]
-        cluster_metrics = [future.result() for future in concurrent.futures.as_completed(futures)]
+
+        # Wait for JMX metrics first and extract in parallel
+        if JMX_ENDPOINTS:
+            raw_jmx = raw_jmx_future.result()
+
+            # Extract JVM health metrics in parallel
+            extract_futures = {}
+            for name, raw_metrics in raw_jmx.items():
+                if JVM_METRICS_SOURCE == 'micrometer':
+                    extract_futures[name] = executor.submit(extract_jvm_health_metrics_quarkus, raw_metrics)
+                else:
+                    extract_futures[name] = executor.submit(extract_jvm_health_metrics, raw_metrics)
+
+            # Collect extracted JVM metrics
+            for name, future in extract_futures.items():
+                jmx_data[name] = future.result()
+
+        # Collect node metrics
+        cluster_metrics = [future.result() for future in concurrent.futures.as_completed(node_futures)]
+
+        # Update node metrics with JMX data if available
+        for node in cluster_metrics:
+            if node['name'] in jmx_data:
+                node['jvm_metrics'] = jmx_data[node['name']]
+                node['jvm_status'] = jmx_data[node['name']].get('status', 'UNKNOWN')
 
     # Sort by node name
     cluster_metrics.sort(key=lambda x: x['name'])
@@ -697,83 +976,121 @@ def collect_engine_health():
                 f"Node {node['url']}: {node.get('error', node['status'])}"
             )
 
-    # Get shared database state from first running node
+    # Parallelize database health check with API calls to first node
+    db_metrics = {"connectivity": "OK"}
     first_node = next((n for n in cluster_metrics if n["status"] == "RUNNING"), None)
-    if first_node:
-        try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                api_calls = {
-                    'instances': executor.submit(
-                        requests.get, f"{first_node['url']}/process-instance/count",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    ),
-                    'tasks': executor.submit(
-                        requests.get, f"{first_node['url']}/task/count",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    ),
-                    'ext_tasks': executor.submit(
-                        requests.get, f"{first_node['url']}/external-task/count",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    ),
-                    'incidents': executor.submit(
-                        requests.get, f"{first_node['url']}/incident/count",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    ),
-                    'deployments': executor.submit(
-                        requests.get, f"{first_node['url']}/deployment/count",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    ),
-                    'process_defs': executor.submit(
-                        requests.get, f"{first_node['url']}/process-definition/count",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    ),
-                    'dmn_defs': executor.submit(
-                        requests.get, f"{first_node['url']}/decision-definition/count",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    ),
-                    'jobs_total': executor.submit(
-                        requests.get, f"{first_node['url']}/job/count",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    ),
-                    'jobs_active': executor.submit(
-                        requests.get, f"{first_node['url']}/job/count?executable=true",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    ),
-                    'jobs_failed': executor.submit(
-                        requests.get, f"{first_node['url']}/job/count?noRetriesLeft=true",
-                        timeout=10, auth=CAMUNDA_AUTH
-                    )
-                }
 
-                for key, future in api_calls.items():
-                    try:
-                        resp = future.result()
-                        if resp.status_code == 200:
-                            count = resp.json().get('count', 0)
-                            if key == 'instances':
-                                totals['active_instances'] = count
-                            elif key == 'tasks':
-                                totals['user_tasks'] = count
-                            elif key == 'ext_tasks':
-                                totals['external_tasks'] = count
-                            elif key == 'incidents':
-                                totals['incidents'] = count
-                            elif key == 'deployments':
-                                totals['deployment_count'] = count
-                            elif key == 'process_defs':
-                                totals['process_definitions'] = count
-                            elif key == 'dmn_defs':
-                                totals['dmn_definitions'] = count
-                            elif key == 'jobs_total':
-                                totals['total_jobs'] = count
-                            elif key == 'jobs_active':
-                                totals['active_jobs'] = count
-                            elif key == 'jobs_failed':
-                                totals['failed_jobs'] = count
-                    except Exception as e:
-                        logger.error(f"API call {key} failed: {e}", exc_info=True)
+    # Use a single executor for both API calls and database queries
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+        # Database health check tasks
+        db_start = time.time()
+        # noinspection PyTypeChecker
+        db_ping_future = executor.submit(execute_query, "SELECT 1")
+        # noinspection PyTypeChecker
+        db_conn_stats_future = executor.submit(
+            execute_query,
+            "SELECT count(*) AS active, "
+            "(SELECT setting::int FROM pg_settings WHERE name='max_connections') AS max "
+            "FROM pg_stat_activity WHERE datname=current_database();"
+        )
+
+        # API calls to first running node (if available)
+        api_calls = {}
+        if first_node:
+            # noinspection PyTypeChecker
+            api_calls = {
+                'instances': executor.submit(
+                    requests.get, f"{first_node['url']}/process-instance/count",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                ),
+                'tasks': executor.submit(
+                    requests.get, f"{first_node['url']}/task/count",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                ),
+                'ext_tasks': executor.submit(
+                    requests.get, f"{first_node['url']}/external-task/count",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                ),
+                'incidents': executor.submit(
+                    requests.get, f"{first_node['url']}/incident/count",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                ),
+                'deployments': executor.submit(
+                    requests.get, f"{first_node['url']}/deployment/count",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                ),
+                'process_defs': executor.submit(
+                    requests.get, f"{first_node['url']}/process-definition/count",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                ),
+                'dmn_defs': executor.submit(
+                    requests.get, f"{first_node['url']}/decision-definition/count",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                ),
+                'jobs_total': executor.submit(
+                    requests.get, f"{first_node['url']}/job/count",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                ),
+                'jobs_active': executor.submit(
+                    requests.get, f"{first_node['url']}/job/count?executable=true",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                ),
+                'jobs_failed': executor.submit(
+                    requests.get, f"{first_node['url']}/job/count?noRetriesLeft=true",
+                    timeout=10, auth=CAMUNDA_AUTH, verify=SSL_VERIFY
+                )
+            }
+
+        # Process database results
+        try:
+            ping_result = db_ping_future.result()
+            conn_stats = db_conn_stats_future.result()
+
+            db_metrics["latency_ms"] = int((time.time() - db_start) * 1000)
+
+            if conn_stats:
+                db_metrics.update({
+                    "active_connections": conn_stats[0]["active"],
+                    "max_connections": conn_stats[0]["max"],
+                    "connection_utilization": round(
+                        (conn_stats[0]["active"] / conn_stats[0]["max"] * 100), 1
+                    ) if conn_stats[0]["max"] > 0 else 0
+                })
         except Exception as e:
-            logger.error(f"Shared state collection failed: {e}", exc_info=True)
+            db_metrics.update({
+                "connectivity": "ERROR",
+                "error": str(e)
+            })
+            cluster_status["issues"].append(f"Database: {str(e)}")
+
+        # Process API call results
+        for key, future in api_calls.items():
+            try:
+                resp = future.result()
+                if resp.status_code == 200:
+                    count = resp.json().get('count', 0)
+                    if key == 'instances':
+                        totals['active_instances'] = count
+                    elif key == 'tasks':
+                        totals['user_tasks'] = count
+                    elif key == 'ext_tasks':
+                        totals['external_tasks'] = count
+                    elif key == 'incidents':
+                        totals['incidents'] = count
+                    elif key == 'deployments':
+                        totals['deployment_count'] = count
+                    elif key == 'process_defs':
+                        totals['process_definitions'] = count
+                    elif key == 'dmn_defs':
+                        totals['dmn_definitions'] = count
+                    elif key == 'jobs_total':
+                        totals['total_jobs'] = count
+                    elif key == 'jobs_active':
+                        totals['active_jobs'] = count
+                    elif key == 'jobs_failed':
+                        totals['failed_jobs'] = count
+            except Exception as e:
+                logger.error(f"API call {key} failed: {e}", exc_info=True)
 
     # Set shared data for all running nodes
     for node in cluster_metrics:
@@ -785,34 +1102,6 @@ def collect_engine_health():
             node["deployment_count"] = totals["deployment_count"]
             node["process_definitions"] = totals["process_definitions"]
             node["dmn_definitions"] = totals["dmn_definitions"]
-
-    # Database health check
-    db_metrics = {"connectivity": "OK"}
-    try:
-        db_start = time.time()
-        execute_query("SELECT 1")
-        db_metrics["latency_ms"] = int((time.time() - db_start) * 1000)
-
-        # Get connection stats
-        conn_stats = execute_query(
-            "SELECT count(*) AS active, "
-            "(SELECT setting::int FROM pg_settings WHERE name='max_connections') AS max "
-            "FROM pg_stat_activity WHERE datname=current_database();"
-        )
-        if conn_stats:
-            db_metrics.update({
-                "active_connections": conn_stats[0]["active"],
-                "max_connections": conn_stats[0]["max"],
-                "connection_utilization": round(
-                    (conn_stats[0]["active"] / conn_stats[0]["max"] * 100), 1
-                ) if conn_stats[0]["max"] > 0 else 0
-            })
-    except Exception as e:
-        db_metrics.update({
-            "connectivity": "ERROR",
-            "error": str(e)
-        })
-        cluster_status["issues"].append(f"Database: {str(e)}")
 
     # Calculate jobs per minute (simple average from node totals)
     if totals["jobs_executed_total"] > 0:
@@ -855,10 +1144,83 @@ def api_health():
     try:
         data = collect_engine_health()
         # Convert datetime to ISO format
+        # noinspection PyTypeChecker
         data['timestamp'] = data['timestamp'].isoformat()
         return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for the monitor itself"""
+    health_status = {
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'checks': {}
+    }
+
+    overall_healthy = True
+
+    # Check database connectivity
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        cursor.close()
+        release_db_connection(conn)
+        # Get pool size safely
+        pool_size = 0
+        if db_pool:
+            try:
+                # noinspection PyProtectedMember
+                pool_size = len(db_pool._pool) if hasattr(db_pool, '_pool') else 0
+            except (AttributeError, TypeError):
+                pool_size = 0
+
+        health_status['checks']['database'] = {
+            'status': 'up',
+            'pool_size': pool_size
+        }
+    except Exception as e:
+        health_status['checks']['database'] = {
+            'status': 'down',
+            'error': str(e)
+        }
+        overall_healthy = False
+
+    # Check Camunda node connectivity
+    reachable_nodes = 0
+    total_nodes = len(CAMUNDA_NODES)
+    for name, url in CAMUNDA_NODES.items():
+        try:
+            response = requests.get(f"{url}/engine", auth=CAMUNDA_AUTH, timeout=5, verify=SSL_VERIFY)
+            if response.status_code == 200:
+                reachable_nodes += 1
+        except:
+            pass
+
+    health_status['checks']['camunda_nodes'] = {
+        'reachable': reachable_nodes,
+        'total': total_nodes,
+        'status': 'up' if reachable_nodes > 0 else 'down'
+    }
+
+    if reachable_nodes == 0:
+        overall_healthy = False
+
+    # Check circuit breaker states
+    health_status['checks']['circuit_breakers'] = {
+        'api': api_circuit_breaker.state,
+        'jmx': jmx_circuit_breaker.state
+    }
+
+    if overall_healthy:
+        return jsonify(health_status), 200
+    else:
+        health_status['status'] = 'unhealthy'
+        return jsonify(health_status), 503
 
 
 # ============================================================
@@ -970,7 +1332,9 @@ def prometheus_metrics():
         lines.append("# TYPE camunda_cluster_info gauge")
 
         cluster = data.get('cluster_status', {})
-        lines.append(f'camunda_cluster_info{{version="{cluster.get("engine_version", "unknown")}"}} {cluster.get("total_nodes", 0)}')
+        version = cluster.get("engine_version", "unknown")
+        total_nodes = cluster.get("total_nodes", 0)
+        lines.append(f'camunda_cluster_info{{version="{version}"}} {total_nodes}')
 
         lines.append("# HELP camunda_cluster_running_nodes Number of running nodes")
         lines.append("# TYPE camunda_cluster_running_nodes gauge")
@@ -1036,7 +1400,10 @@ def prometheus_metrics():
         for node in nodes:
             if node.get('status') == 'RUNNING':
                 node_name = node.get('name', 'unknown').replace('-', '_')
-                lines.append(f'camunda_node_job_success_rate{{node="{node_name}"}} {node.get("job_success_rate", 100)}')
+                job_success_rate = node.get("job_success_rate", 100)
+                lines.append(
+                    f'camunda_node_job_success_rate{{node="{node_name}"}} {job_success_rate}'
+                )
 
         lines.append("# HELP camunda_node_workload_score Workload score per node")
         lines.append("# TYPE camunda_node_workload_score gauge")
@@ -1052,7 +1419,8 @@ def prometheus_metrics():
             jvm = node.get('jvm_metrics', {})
             if jvm.get('status') == 'HEALTHY':
                 node_name = node.get('name', 'unknown').replace('-', '_')
-                lines.append(f'camunda_jvm_heap_used_mb{{node="{node_name}"}} {jvm.get("memory", {}).get("heap_used_mb", 0)}')
+                heap_used = jvm.get("memory", {}).get("heap_used_mb", 0)
+                lines.append(f'camunda_jvm_heap_used_mb{{node="{node_name}"}} {heap_used}')
 
         lines.append("# HELP camunda_jvm_heap_utilization_percent JVM heap utilization percentage")
         lines.append("# TYPE camunda_jvm_heap_utilization_percent gauge")
@@ -1060,7 +1428,10 @@ def prometheus_metrics():
             jvm = node.get('jvm_metrics', {})
             if jvm.get('status') == 'HEALTHY':
                 node_name = node.get('name', 'unknown').replace('-', '_')
-                lines.append(f'camunda_jvm_heap_utilization_percent{{node="{node_name}"}} {jvm.get("memory", {}).get("heap_utilization_pct", 0)}')
+                heap_util = jvm.get("memory", {}).get("heap_utilization_pct", 0)
+                lines.append(
+                    f'camunda_jvm_heap_utilization_percent{{node="{node_name}"}} {heap_util}'
+                )
 
         lines.append("# HELP camunda_jvm_cpu_load_percent CPU load percentage")
         lines.append("# TYPE camunda_jvm_cpu_load_percent gauge")
@@ -1068,7 +1439,10 @@ def prometheus_metrics():
             jvm = node.get('jvm_metrics', {})
             if jvm.get('status') == 'HEALTHY':
                 node_name = node.get('name', 'unknown').replace('-', '_')
-                lines.append(f'camunda_jvm_cpu_load_percent{{node="{node_name}"}} {jvm.get("system", {}).get("cpu_load_pct", 0)}')
+                cpu_load = jvm.get("system", {}).get("cpu_load_pct", 0)
+                lines.append(
+                    f'camunda_jvm_cpu_load_percent{{node="{node_name}"}} {cpu_load}'
+                )
 
         # Database metrics
         db_metrics = data.get('db_metrics', {})
@@ -1141,6 +1515,7 @@ if __name__ == '__main__':
     logger.info(f"Starting Camunda Health Monitor on port {port}")
     logger.info(f"Dashboard: http://localhost:{port}")
     logger.info(f"API: http://localhost:{port}/api/health")
+    logger.info(f"Health Check: http://localhost:{port}/health")
     logger.info(f"Metrics: http://localhost:{port}/metrics\n")
 
     app.run(host='0.0.0.0', port=port, debug=debug)
