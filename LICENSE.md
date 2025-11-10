@@ -107,10 +107,14 @@ Awesome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. All contribution
 
 ### Can we modify and redistribute this?
 
-Yes! Apache 2.0 allows modification and redistribution. We only ask that you:
-- Keep the Apache 2.0 license intact
-- Credit Champa Intelligence
-- Consider contributing improvements back to the community
+Yes! Apache 2.0 allows modification and redistribution. The license requires that you:
+
+- Keep the Apache 2.0 license intact (required)
+- Include copyright notices (required)
+
+We'd also appreciate if you:
+- Credit Champa Intelligence (optional but appreciated)
+- Consider contributing improvements back (optional but awesome)
 
 ---
 
