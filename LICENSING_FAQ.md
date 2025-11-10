@@ -1,187 +1,281 @@
 # Licensing FAQ
 
-## 📋 Common Questions About Licensing
+Complete answers to all your licensing questions about Camunda Health Monitor.
 
-### 🆓 Free Use
+---
 
-**Q: Can I use this for learning Camunda?**  
-A: Yes! Educational and personal learning use is completely free.
+## 🆓 Free Use (Apache 2.0)
 
-**Q: Can my university use this in teaching?**  
-A: Yes! Educational institutions can use this freely for teaching and research.
+### Q: Is this really free?
 
-**Q: Can our non-profit organization use this?**  
-A: Yes! Registered non-profit organizations can use this for their charitable purposes.
+**A:** Yes! Completely free. Apache License 2.0 means:
+- ✅ Free for personal use
+- ✅ Free for commercial use (any company, any size)
+- ✅ Free for educational use
+- ✅ Free for non-profit organizations
+- ✅ Free to modify and redistribute
+- ✅ No registration required
+- ✅ No trial period that expires
+- ✅ **No hidden costs or restrictions**
 
-**Q: Can I use this for my personal project?**  
-A: Yes! Personal, non-commercial projects are fully permitted.
+### Q: Can I use this at my company?
 
-**Q: Can I modify the code for my own use?**  
-A: Yes! You can modify it for permitted use cases (education, non-profit, personal).
+**A:** Absolutely! Whether you're a solo developer, a startup, or a Fortune 500 company, you can use Camunda Health Monitor freely. Apache 2.0 explicitly allows commercial use.
 
-### 💼 Commercial Use
+### Q: Can I use this to monitor production Camunda systems?
 
-**Q: What counts as "commercial use"?**  
-A: Commercial use includes:
-- Using it within a for-profit company
-- Monitoring production Camunda instances for business operations
-- Integrating into commercial products or services
-- Providing paid services using this software
-- Any use that generates revenue or provides commercial benefit
+**A:** Yes! That's exactly what it's built for. Monitor as many Camunda nodes as you need, in any environment (dev, staging, production).
 
-**Q: We're a small startup. Do we need a license?**  
-A: Yes, but we offer special pricing for startups! Contact info@champa-bpmn.com and let us know about your company. We have flexible options designed for small businesses.
+### Q: Can I modify the code?
 
-**Q: How much does a commercial license cost?**  
-A: Pricing varies based on:
-- Company size
-- Number of nodes monitored
-- Support requirements
-- Custom feature needs
+**A:** Yes! You can:
+- Modify it for your needs
+- Add custom metrics
+- Change the UI
+- Integrate with your tools
+- Fork the repository
 
-Contact info@champa-bpmn.com for a quote. We're committed to fair, reasonable pricing.
+We only ask that you keep the Apache 2.0 license notice intact.
 
-**Q: Can I try it before buying a license?**  
-A: Absolutely! You can evaluate the software for up to 30 days for commercial purposes. Just let us know you're evaluating it: info@champa-bpmn.com
+### Q: Can I redistribute my modified version?
 
-**Q: What if I'm already using it and just realized I need a license?**  
-A: No problem! Contact us at info@champa-bpmn.com. We'll work with you to get properly licensed. We understand these things happen.
+**A:** Yes, as long as you:
+- Include the Apache 2.0 license
+- Note what changes you made
+- Credit Champa Intelligence
 
-**Q: Do consultants need a commercial license?**  
-A: If you're using it for client work or in a for-profit consulting capacity, yes. Contact us for consultant/MSP licensing options.
+### Q: Do I need to open source my modifications?
 
-### 🏢 Enterprise Organizations
+**A:** No. Apache 2.0 is permissive - you can keep your modifications private if you want. (But we'd love it if you contribute back!)
 
-**Q: We have multiple Camunda clusters. How does licensing work?**  
-A: We offer site licenses and enterprise agreements for organizations with multiple deployments. Contact info@champa-bpmn.com to discuss your needs.
+### Q: Is there a limit on nodes, users, or data?
 
-**Q: Can we get the full Champa Intelligence platform instead?**  
-A: Yes! The full Champa Intelligence platform includes:
-- AI-powered process analysis
-- Historical data tracking and trends
-- Advanced analytics and reporting
-- Process optimization recommendations
-- Enterprise support and SLAs
-- Custom integrations
+**A:** The Community Edition (this open source version) has no artificial limits. Monitor as many nodes as you want!
 
-Visit https://champa-bpmn.com or email info@champa-bpmn.com
+---
 
-**Q: Do you offer enterprise support agreements?**  
-A: Yes! We offer various support tiers including:
-- Email support
-- Priority support with SLAs
-- Dedicated support engineer
-- Custom feature development
-- Training and onboarding
+## ☕ Coffee Fees (Voluntary Support)
 
-### 🤝 Partnerships & Resellers
+### Q: What's a "coffee fee"?
 
-**Q: Can we resell this to our clients?**  
-A: We offer reseller and partner programs. Contact info@champa-bpmn.com to discuss partnership opportunities.
+**A:** It's our friendly way of saying "voluntary contribution." If this tool saves you time or money, consider buying us a coffee! It's 100% optional.
 
-**Q: Can we integrate this into our product?**  
-A: Yes, we offer OEM licensing for product integrations. Email info@champa-bpmn.com with details about your product.
+### Q: Do I have to pay the suggested coffee fees?
 
-**Q: We're a Camunda consulting partner. What options do you have?**  
-A: We have special programs for Camunda partners! Contact us at info@champa-bpmn.com
+**A:** No! They're suggestions to guide people who *want* to support development. Use the tool freely whether you contribute or not.
 
-### 🔧 Technical & Distribution
+### Q: What if I can only afford $1/month?
 
-**Q: Can I distribute modified versions?**  
-A: Distribution of modified versions requires explicit permission. Contact info@champa-bpmn.com to discuss.
+**A:** Every bit helps and is appreciated! Contribute what feels right for your situation. Even $1/month means you care, and that's awesome.
 
-**Q: Can I use this in a SaaS offering?**  
-A: Using it in a SaaS or managed service offering requires a commercial license. We have specific SaaS licensing options available.
+### Q: What if I'm already using it and want to start contributing?
 
-**Q: Can I contribute code back to the project?**  
-A: Yes! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. Contributors retain copyright to their contributions, which are licensed under the same terms.
+**A:** Wonderful! Visit [Buy Me a Coffee](https://buymeacoffee.com/bibchik) or [Ko-fi](https://ko-fi.com/bibchik) anytime. You can set up one-time or recurring contributions.
 
-**Q: What if I'm not sure if my use case needs a license?**  
-A: When in doubt, just ask! Email info@champa-bpmn.com with a description of your use case. We'll give you a clear answer within 24 hours.
+### Q: Can I contribute annually instead of monthly?
 
-### 📞 Getting a Commercial License
+**A:** Absolutely! Both Ko-fi and Buy Me a Coffee support one-time contributions. Many people do yearly contributions during their renewal planning.
 
-**Q: What's the process to get licensed?**  
-A: Simple! 
-1. Email info@champa-bpmn.com with:
-   - Your company name and size
-   - Number of Camunda nodes you're monitoring
-   - Brief description of your use case
-2. We'll respond within 1 business day with options
-3. Choose the plan that works for you
-4. Sign agreement and receive your license key
-5. You're all set!
+### Q: Where does the money go?
 
-**Q: How quickly can we get licensed?**  
-A: Most licenses are issued within 1-2 business days after agreement.
+**A:** 100% goes toward:
+- Development time (new features, bug fixes)
+- Infrastructure costs (hosting demos, docs site)
+- Documentation and tutorials
+- Community support time
+- Security audits and updates
 
-**Q: What payment methods do you accept?**  
-A: We accept:
-- Credit cards
-- Wire transfer
-- Purchase orders (for qualified organizations)
-- Annual or monthly billing available
+### Q: Can we contribute in other ways besides money?
 
-**Q: Do you offer annual discounts?**  
-A: Yes! Annual subscriptions receive a discount compared to monthly pricing.
+**A:** Yes! Non-financial contributions are equally valuable:
+- ⭐ Star the GitHub repo
+- 🐛 Report bugs with detailed info
+- 💬 Answer questions in Discussions
+- 📖 Improve documentation
+- 🔧 Submit pull requests
+- 📣 Tell colleagues about it
+- ✍️ Write blog posts about your use case
 
-### 🌍 Regional & Special Cases
+---
 
-**Q: We're in [country]. Can we use this?**  
-A: Our software and licensing is available worldwide! Contact info@champa-bpmn.com if you have specific requirements for your region.
+## 🌍 Special Cases
 
-**Q: We're a government agency. What options do we have?**  
-A: We work with government agencies worldwide. Contact info@champa-bpmn.com to discuss your requirements.
+### Q: We're a startup. Any special pricing?
 
-**Q: Our company is both for-profit and does charitable work. What applies?**  
-A: If the software is used for business operations, a commercial license is needed. Contact us to discuss your specific situation.
+**A:** Yes! Startups get:
+- Community Edition: Free (always)
+- Enterprise: Flexible pricing
 
-### 🆘 Still Have Questions?
+Email info@champa-bpmn.com with info about your startup.
+
+### Q: We're a registered non-profit. What options do we have?
+
+**A:** Non-profits get:
+- Community Edition: Free (always)
+- Enterprise: Discounted rates (typically 40-60% off)
+
+Send proof of non-profit status to info@champa-bpmn.com
+
+### Q: We're an educational institution. Can we use this for teaching?
+
+**A:** Absolutely! Educational use includes:
+- Community Edition: Free for teaching and research
+- Enterprise: Special academic pricing
+
+We love supporting education! Email info@champa-bpmn.com
+
+### Q: We're a consultancy monitoring client Camunda systems. How does licensing work?
+
+**A:** Great question! Options:
+- **Community Edition:** Free for client deployments
+- **MSP/Partner Program:** Volume discounts for consultancies managing many clients
+
+Contact info@champa-bpmn.com for MSP/partner pricing.
+
+### Q: Can we white-label this for our clients?
+
+**A:** Enterprise Edition includes white-labeling options:
+- Custom branding
+- Your logo and colors
+- Branded reports
+- Remove Champa Intelligence references (optional)
+
+Contact info@champa-bpmn.com to discuss.
+
+### Q: We're in [country]. Is this available?
+
+**A:** Yes! Camunda Health Monitor works worldwide. We have users on every continent. All editions available globally.
+
+---
+
+## 🤝 Contributing & Community
+
+### Q: Can I contribute code back?
+
+**A:** Yes, please! See [CONTRIBUTING.md](CONTRIBUTING.md). We welcome:
+- Bug fixes
+- New features
+- Documentation improvements
+- Test coverage
+- Examples and tutorials
+
+All contributions remain Apache 2.0 licensed.
+
+### Q: Do contributors get any benefits?
+
+**A:** Top contributors receive:
+- Recognition in CONTRIBUTORS.md
+- Priority in feature discussions
+- Direct communication with maintainers
+- Exclusive "Contributor" badge in our community
+
+### Q: Can I use this as part of a larger open source project?
+
+**A:** Yes! Apache 2.0 is compatible with most open source licenses. You can include Camunda Health Monitor in your project.
+
+### Q: We want to package this for a Linux distribution. OK?
+
+**A:** Yes! We'd love that. Please:
+- Keep the Apache 2.0 license
+- Credit Champa Intelligence
+- Let us know! (We'll link to your package)
+
+### Q: Can we translate the UI to other languages?
+
+**A:** Yes! We'd welcome translation contributions. Currently English-only, but i18n support is on the roadmap. Interested in helping? Open an issue!
+
+---
+
+## 🔧 Technical & Distribution
+
+### Q: Can I deploy this in my AWS/Azure/GCP account?
+
+**A:** Yes! Deploy anywhere:
+- AWS EC2, ECS, Lambda
+- Azure VMs, Container Instances
+- Google Cloud Compute, Cloud Run
+- On-premise servers
+- Docker/Kubernetes anywhere
+
+### Q: Can I sell this as a hosted service?
+
+**A:** Yes (Apache 2.0 allows it), but consider:
+- You must comply with Apache 2.0 terms
+- Consider being a good open source citizen
+- Think about partnering with us (MSP program)
+
+We'd prefer you contact us about a partnership: info@champa-bpmn.com
+
+### Q: Can I include this in a commercial product?
+
+**A:** Yes, Apache 2.0 allows commercial use. We only ask:
+- Keep the Apache 2.0 license
+- Credit Champa Intelligence
+- Consider Enterprise licensing for additional features/support
+
+For OEM/embedding scenarios, contact info@champa-bpmn.com for partnership options.
+
+### Q: Are there any usage restrictions?
+
+**A:** Only those in Apache 2.0 (attribution, license notice). Otherwise:
+- ✅ Any number of nodes
+- ✅ Any environment
+- ✅ Any company size
+- ✅ Any purpose (commercial, personal, etc.)
+
+---
+
+## ❓ Still Have Questions?
 
 **We're here to help!**
 
-- 📧 **Email:** info@champa-bpmn.com  
-- 🌐 **Website:** https://champa-bpmn.com  
-- ⏱️ **Response Time:** Within 24 hours (usually much faster!)
-
-**Our Promise:** We're committed to finding fair, win-win solutions. Whether you're a solo developer, a startup, or a large enterprise, we'll work with you to find licensing that makes sense for your situation.
+- 📧 **Email:** info@champa-bpmn.com (we respond within 24 hours, usually much faster)
+- 💬 **GitHub Discussions:** [Ask the community](https://github.com/bibacrm/camunda-health-monitor/discussions)
+- 🐛 **GitHub Issues:** [Report bugs](https://github.com/bibacrm/camunda-health-monitor/issues)
+- 🌐 **Website:** https://champa-bpmn.com
 
 ---
 
 ## 🎯 Quick Decision Guide
 
-**Choose "Free" if:**
-- 👨‍🎓 You're a student or educator
-- 🏫 You're at an educational institution
-- 💚 You're a registered non-profit
-- 🏠 It's for personal learning/projects
+**Use Community Edition (Free) if:**
+- 👨‍💻 You're learning Camunda
+- 🚀 You need real-time monitoring
+- 💰 You have budget constraints
+- 🏢 You're a small deployment
+- ✅ Community support is sufficient
 
-**Need a "Commercial License" if:**
-- 🏢 You're a business using it for operations
-- 💰 Any revenue-generating use
-- 🤝 Using it for client work
-- 📦 Integrating into a product
+**Choose Enterprise (Custom) if:**
+- 🤖 You want AI-powered insights
+- 🔐 You need SSO and security features
+- 📞 You require SLA guarantees
+- 👨‍💼 You need dedicated support
+- 🏢 You're managing 4+ high load nodes
+- 🛠️ You need custom integrations
 
 **Not sure?**  
-📧 Email info@champa-bpmn.com - We'll clarify!
+📧 Email info@champa-bpmn.com - we'll help you decide!
 
 ---
 
-## 💡 Why This License Model?
+## 💚 Our Philosophy
 
-We believe in:
+We believe:
 
-✅ **Accessible Learning** - Students and educators should have free access to quality tools
+✅ **Great tools should be accessible** - That's why Community Edition is truly free
 
-✅ **Supporting Non-Profits** - Organizations doing good work shouldn't face barriers
+✅ **Sustainability matters** - Voluntary support helps us keep developing
 
-✅ **Fair Commercial Use** - Businesses using software for profit should contribute to its development
+✅ **Value deserves payment** - Pro/Enterprise editions provide real value worth paying for
 
-✅ **Sustainable Development** - Commercial licensing enables us to continue improving the software
+✅ **Community is everything** - Your contributions make this better for everyone
 
-✅ **Win-Win Solutions** - Fair pricing that works for businesses of all sizes
+✅ **Transparency wins** - No hidden fees, no tricks, no fine print
 
 ---
 
 **Last Updated:** November 2025  
-**Contact:** info@champa-bpmn.com
+**Contact:** info@champa-bpmn.com  
+**License:** Apache 2.0
+
+**Built with ❤️ for the Camunda community**

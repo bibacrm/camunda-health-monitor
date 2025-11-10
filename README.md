@@ -2,7 +2,7 @@
 
 A lightweight, real-time monitoring dashboard for Camunda 7 based BPM Platform clusters. Monitor your process engines, track performance metrics, and gain insights into your workflow automation with a modern, responsive interface.
 
-![License](https://img.shields.io/badge/license-Custom-blue.svg)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue)
 ![Camunda](https://img.shields.io/badge/camunda-7.x-orange)
 ![Flask](https://img.shields.io/badge/flask-3.0-green)
@@ -336,12 +336,9 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ## 📄 License
 
-This project is licensed under a custom non-commercial license. See [LICENSE.md](LICENSE.md) for details.
+This project is licensed under the Apache License 2.0 - see [LICENSE.md](LICENSE.md) for details.
 
-**Summary:**
-- ✅ Free for educational, non-profit, and personal use
-- ❌ Commercial use requires a separate license
-- 📧 Contact: info@champa-bpmn.com
+**Voluntary Support**: While this software is free and open source, voluntary contributions help maintain and improve this project. See [LICENSING_FAQ.md](LICENSING_FAQ.md) and [LICENSE.md](LICENSE.md) for more information about supporting the project.
 
 ## 🙏 Acknowledgments
 
