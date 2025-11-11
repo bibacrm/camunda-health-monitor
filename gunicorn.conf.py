@@ -44,7 +44,12 @@ tmp_upload_dir = None
 # certfile = '/path/to/cert.pem'
 
 # Preload app for better performance and memory usage
+# Note: With preload_app=True, the app is loaded in the master process
+# Database connections are created per-worker in post_fork
 preload_app = True
+
+# Graceful timeout for shutdown
+graceful_timeout = 30
 
 
 # Server hooks
@@ -54,6 +59,7 @@ def on_starting(server):
     print("Starting Camunda Health Monitor with Gunicorn...")
     print(f"Workers: {workers}")
     print(f"Bind: {bind}")
+    print(f"Preload: {preload_app}")
     print("=" * 60)
 
 
@@ -62,6 +68,8 @@ def when_ready(server):
     print(f"Camunda Health Monitor ready on {bind}")
     print(f"Workers: {workers}")
     print(f"Timeout: {timeout}s")
+    print(f"Graceful timeout: {graceful_timeout}s")
+    print("Application initialized and ready to serve requests")
 
 
 def on_reload(server):
@@ -79,6 +87,57 @@ def worker_abort(worker):
     print(f"Worker {worker.pid} received SIGABRT signal")
 
 
+def pre_fork(server, worker):
+    """Called just before a worker is forked."""
+    # Close database connections in master process before forking
+    # This prevents connection sharing between master and workers
+    try:
+        from helpers.db_helper import get_db_helper
+        db_helper = get_db_helper()
+        # Don't close here as we're using connection pooling
+        # Each worker will get its own connections from the pool
+        print(f"Preparing to fork worker {worker.pid}")
+    except:
+        pass
+
+
+def post_fork(server, worker):
+    """Called just after a worker has been forked."""
+    print(f"Worker {worker.pid} started")
+
+    # Each worker marks itself as ready
+    try:
+        from helpers.health_checks import get_health_registry
+        registry = get_health_registry()
+        registry.mark_startup_complete()
+        print(f"Worker {worker.pid} marked as ready")
+    except Exception as e:
+        print(f"Worker {worker.pid} initialization warning: {e}")
+
+
+def pre_exec(server):
+    """Called just before a new master process is forked."""
+    print("Forking new master process...")
+
+
 def on_exit(server):
     """Called just before exiting."""
     print("Shutting down Camunda Health Monitor...")
+    from helpers.health_checks import get_health_registry
+    from helpers.shutdown_handler import get_shutdown_handler
+
+    try:
+        # Mark shutdown initiated
+        registry = get_health_registry()
+        registry.mark_shutdown_initiated()
+
+        # Cleanup resources
+        shutdown_handler = get_shutdown_handler()
+        for callback, name in shutdown_handler.shutdown_callbacks:
+            try:
+                print(f"Executing shutdown callback: {name}")
+                callback()
+            except Exception as e:
+                print(f"Error in shutdown callback '{name}': {e}")
+    except:
+        pass

@@ -20,14 +20,20 @@ services:
       - CAMUNDA_NODE_1_URL=${CAMUNDA_NODE_1_URL}
       - CAMUNDA_NODE_2_NAME=${CAMUNDA_NODE_2_NAME}
       - CAMUNDA_NODE_2_URL=${CAMUNDA_NODE_2_URL}
+      - CAMUNDA_NODE_3_NAME=${CAMUNDA_NODE_3_NAME}
+      - CAMUNDA_NODE_3_URL=${CAMUNDA_NODE_3_URL}
+      - CAMUNDA_NODE_4_NAME=${CAMUNDA_NODE_4_NAME}
+      - CAMUNDA_NODE_4_URL=${CAMUNDA_NODE_4_URL}
 
       # Camunda Authentication
       - CAMUNDA_API_USER=${CAMUNDA_API_USER}
       - CAMUNDA_API_PASSWORD=${CAMUNDA_API_PASSWORD}
 
-      # JMX Endpoints (Optional)
+      # JMX Endpoints
       - JMX_NODE_1_URL=${JMX_NODE_1_URL}
       - JMX_NODE_2_URL=${JMX_NODE_2_URL}
+      - JMX_NODE_3_URL=${JMX_NODE_3_URL}
+      - JMX_NODE_4_URL=${JMX_NODE_4_URL}
 
       # Application Configuration
       - JVM_METRICS_SOURCE=${JVM_METRICS_SOURCE:-jmx}
@@ -44,11 +50,11 @@ services:
     restart: unless-stopped
 
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:5000/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/health/live" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 40s
 
     # Uncomment to use host network mode if monitoring Camunda on localhost
     # network_mode: host

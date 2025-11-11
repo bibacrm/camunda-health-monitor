@@ -5,3 +5,4 @@ requests==2.31.0
 gunicorn==21.2.0
 python-json-logger==2.0.7
 urllib3
+psutil==5.9.6
