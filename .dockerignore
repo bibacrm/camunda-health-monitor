@@ -24,9 +24,9 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# Environment files (use ConfigMap/Secrets in K8s)
 .env
-.venv
+.env.*
 
 # IDE
 .vscode/
@@ -36,7 +36,7 @@ wheels/
 *~
 .DS_Store
 
-# Logs
+# Logs (created at runtime)
 logs/
 *.log
 
@@ -45,10 +45,25 @@ logs/
 .gitignore
 .gitattributes
 
-# Documentation
+# Documentation (except README)
 *.md
 !README.md
-docs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.bak
+*.tmp
+*_old.py
+app_old_backup.py
+test_*.py
+
+# Docker files
+.dockerignore
+Dockerfile
+docker-compose.yml
 
 # Docker
 Dockerfile

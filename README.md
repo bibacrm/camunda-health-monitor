@@ -9,7 +9,7 @@ A lightweight, real-time monitoring dashboard for Camunda 7 based BPM Platform c
 
 ## 🎥 Video Demo
 
-Watch the feature demonstration on YouTube(enterprise version, but it is 70% the same):
+Watch the feature demonstration on YouTube(enterprise version, but it is 80% the same):
 
 [![Camunda Health Monitor Demo](https://img.youtube.com/vi/WFQRxpmjRrE/0.jpg)](https://youtu.be/WFQRxpmjRrE)
 
@@ -61,186 +61,155 @@ Watch the feature demonstration on YouTube(enterprise version, but it is 70% the
 - Camunda 7.x running with REST API enabled
 - JMX Exporter or Micrometer based metrics API for advanced JVM metrics
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1. Clone the Repository
+### 1. Install
 
 ```bash
 git clone https://github.com/bibacrm/camunda-health-monitor.git
 cd camunda-health-monitor
-```
-
-### 2. Install Dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure Your Environment
+### 2. Configure
 
-Create a `.env` file in the project root:
+Create `.env` file:
 
 ```env
-# Database Configuration
-DB_NAME=camunda
-DB_USER=camunda
-DB_PASSWORD=your_password
+# Database
 DB_HOST=localhost
 DB_PORT=5432
+DB_NAME=camunda
+DB_USER=camunda
+DB_PASSWORD=camunda
 
 # Camunda Nodes
 CAMUNDA_NODE_1_NAME=node1
 CAMUNDA_NODE_1_URL=http://localhost:8080/engine-rest
 
-CAMUNDA_NODE_2_NAME=node2
-CAMUNDA_NODE_2_URL=http://localhost:8081/engine-rest
-
-# Optional: Camunda API Authentication
+# Optional: Authentication
 CAMUNDA_API_USER=
 CAMUNDA_API_PASSWORD=
 
-# Optional: JMX Exporter Endpoints
+# JMX Metrics Nodes
 JMX_NODE_1_URL=http://localhost:8080/metrics
-JMX_NODE_2_URL=http://localhost:8081/metrics
 
-# Optional: JVM Metrics Source (jmx or micrometer)
-JVM_METRICS_SOURCE=jmx
+# JMX Metrics Format
+JVM_METRICS_SOURCE=jmx  # or 'micrometer' for Quarkus
 
-# Configuration
-STUCK_INSTANCE_DAYS=7
+# Settings
 PORT=5000
 DEBUG=false
+JSON_LOGGING=false
+SSL_VERIFY=false
+STUCK_INSTANCE_DAYS=7
 ```
 
-### 4. Run the Application
-
-**Option 1: Development Mode (Flask)**
+### 3. Run
 
 ```bash
+# Development
 python app.py
+
+# Production
+gunicorn -c gunicorn.conf.py app:app
 ```
 
-**Option 2: Production Mode (Gunicorn)**
+Access at `http://localhost:5000`
+
+## Docker
 
 ```bash
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
-```
-
-The dashboard will be available at `http://localhost:5000`
-
-## 🐳 Docker Deployment
-
-### Using Docker Compose (Recommended)
-
-```bash
-# Copy environment template
-cp .env.example .env
-
-# Edit .env with your configuration
-nano .env
-
-# Start the application
+# Using Docker Compose (recommended)
 docker-compose up -d
-```
 
-### Using Docker Directly
-
-```bash
-# Build the image
+# Or build directly
 docker build -t camunda-health-monitor .
-
-# Run the container
-docker run -d \
-  --name camunda-health-monitor \
-  -p 5000:5000 \
-  --env-file .env \
-  camunda-health-monitor
+docker run -p 5000:5000 --env-file .env camunda-health-monitor
 ```
 
-### Health Check
+## Kubernetes
 
 ```bash
-curl http://localhost:5000/api/health
+kubectl apply -f kubernetes-deployment.yaml
 ```
 
-## 📊 API Endpoints
+Edit ConfigMap and Secrets in `kubernetes-deployment.yaml` for your environment.
 
-### REST API
+## API Endpoints
 
-- `GET /` - Main dashboard UI
-- `GET /api/health` - Full health metrics (JSON)
-- `GET /api/metrics/stuck-instances` - Stuck instances count
-- `GET /api/metrics/pending-messages` - Pending message subscriptions
-- `GET /api/metrics/pending-signals` - Pending signal subscriptions
-- `GET /api/metrics/job-throughput` - Job execution rate
-- `GET /api/metrics/database` - Database storage and performance metrics
+| Endpoint | Description |
+|----------|-------------|
+| `/` | Dashboard UI |
+| `/api/health` | Cluster health JSON |
+| `/api/docs` | Swagger documentation |
+| `/metrics` | Prometheus metrics |
+| `/health/ready` | Readiness probe |
+| `/health/live` | Liveness probe |
 
-### Prometheus Metrics
+## Configuration
 
-Export metrics for Prometheus/Grafana:
+All configuration via environment variables. See `.env.example` for full reference.
 
-```bash
-curl http://localhost:5000/metrics
+**Key Variables:**
+- `DB_*` - PostgreSQL connection
+- `CAMUNDA_NODE_*` - Camunda REST API endpoints (supports multiple nodes)
+- `JMX_NODE_*` - JMX/Micrometer endpoints (optional)
+- `CAMUNDA_API_USER/PASSWORD` - Basic auth (optional)
+- `JVM_METRICS_SOURCE` - `jmx` or `micrometer`
+- `SSL_VERIFY` - `true`/`false` for HTTPS verification
+
+## Architecture
+
+```
+├── app.py              # Flask application factory
+├── config.py           # Configuration management
+├── wsgi.py             # Production WSGI entry point
+├── routes/             # HTTP endpoints (blueprints)
+│   ├── main.py         # Dashboard
+│   ├── api.py          # API endpoints
+│   └── metrics.py      # Prometheus & health
+├── services/           # Business logic
+│   ├── camunda_service.py
+│   └── database_service.py
+└── helpers/            # Utilities
+    ├── db_helper.py
+    ├── health_checks.py
+    └── error_handler.py
 ```
 
-Metrics include:
-- `camunda_active_instances` - Active process instances
-- `camunda_incidents` - Open incidents
-- `camunda_node_status` - Node availability (per node)
-- `camunda_jvm_heap_utilization_percent` - JVM heap usage (per node)
-- `camunda_db_latency_ms` - Database query latency
-- And many more...
+## Production Deployment
 
-## 🔧 Configuration
-
-### Multiple Nodes
-
-To monitor multiple Camunda nodes, add additional node configurations:
-
-```env
-CAMUNDA_NODE_1_NAME=production-1
-CAMUNDA_NODE_1_URL=http://prod1.example.com:8080/engine-rest
-
-CAMUNDA_NODE_2_NAME=production-2
-CAMUNDA_NODE_2_URL=http://prod2.example.com:8080/engine-rest
-
-CAMUNDA_NODE_3_NAME=production-3
-CAMUNDA_NODE_3_URL=http://prod3.example.com:8080/engine-rest
-```
-
-### JMX Exporter Setup
-
-For detailed JVM metrics, configure JMX Exporter on your Camunda nodes:
-
-1. Download [Prometheus JMX Exporter](https://github.com/prometheus/jmx_exporter)
-2. Add to your Camunda JVM startup:
-   ```bash
-   -javaagent:/path/to/jmx_prometheus_javaagent.jar=8080:/path/to/config.yaml
-   ```
-3. Add endpoints to your `.env`:
-   ```env
-   JMX_NODE_1_URL=http://localhost:8080/metrics
-   ```
-
-### Gunicorn Production Configuration
-
-Create `gunicorn.conf.py`:
-
-```python
-bind = "0.0.0.0:5000"
-workers = 4
-worker_class = "sync"
-timeout = 120
-keepalive = 5
-errorlog = "logs/gunicorn-error.log"
-accesslog = "logs/gunicorn-access.log"
-loglevel = "info"
-```
-
-Run with:
+**Gunicorn** (recommended):
 ```bash
 gunicorn -c gunicorn.conf.py app:app
 ```
+
+**Configuration** in `gunicorn.conf.py`:
+- Workers: CPU cores × 2 + 1
+- Timeout: 120s
+- Graceful shutdown: 30s
+
+**Database Pool**:
+- Min connections: 1
+- Max connections: 20
+- Timeout: 5s
+
+## Monitoring
+
+**Prometheus**:
+```yaml
+scrape_configs:
+  - job_name: 'camunda-monitor'
+    static_configs:
+      - targets: ['localhost:5000']
+    metrics_path: '/metrics'
+```
+
+**Kubernetes Probes**:
+- Startup: `/health/startup` (max 150s)
+- Liveness: `/health/live` (every 10s)
+- Readiness: `/health/ready` (every 5s)
 
 ## 📈 Metrics Overview
 
@@ -305,24 +274,6 @@ This is a monitoring tool that requires read access to:
 - Consider network segmentation for database access
 - Use environment variables for all sensitive configuration
 - Never commit `.env` files to version control
-
-### Example Nginx Reverse Proxy
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name monitor.example.com;
-
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-
-    location / {
-        proxy_pass http://localhost:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
 
 ## 🤝 Contributing
 

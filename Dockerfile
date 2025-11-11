@@ -23,8 +23,13 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy application code
 COPY app.py .
+COPY config.py .
+COPY wsgi.py .
 COPY gunicorn.conf.py .
 COPY templates/ templates/
+COPY helpers/ helpers/
+COPY routes/ routes/
+COPY services/ services/
 
 # Create logs directory with proper permissions
 RUN mkdir -p logs
@@ -38,9 +43,9 @@ USER camunda
 # Expose port
 EXPOSE 5000
 
-# Health check using the dedicated /health endpoint
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+# Health check using Kubernetes liveness probe endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:5000/health/live || exit 1
 
 # Default environment variables (can be overridden)
 ENV PORT=5000 \

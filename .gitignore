@@ -28,6 +28,7 @@ wheels/
 
 # Virtual environments
 venv/
+.venv/
 env/
 ENV/
 env.bak/
@@ -51,6 +52,7 @@ log/
 .coverage
 htmlcov/
 .tox/
+.mypy_cache/
 
 # Gunicorn
 gunicorn.pid
@@ -62,3 +64,10 @@ gunicorn.pid
 
 # OS
 Thumbs.db
+
+# Temporary/backup files
+*.bak
+*.tmp
+*_old.py
+app_old_backup.py
+app_new.py
