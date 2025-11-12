@@ -36,7 +36,7 @@ Watch the feature demonstration on YouTube(enterprise version, but it is 80% the
 
 https://hub.docker.com/r/champabpmn/camunda-health-monitor
 
-Create a `.env` file with your configuration (example for Camunda 2 nodes cluster):
+1. Create a `.env` file with your configuration (example for Camunda 2 nodes cluster):
 ```bash
 # Database Configuration (PostgreSQL)
 DB_NAME=PUT_YOUR_CAMUNDA_DB_NAME_HERE
@@ -77,11 +77,13 @@ DEBUG=false
 JSON_LOGGING=false
 SSL_VERIFY=false
 ```
-Run in console:
+2. Run in console:
 ```bash
 docker pull champabpmn/camunda-health-monitor:latest
 docker run -d -p 5000:5000 --env-file .env champa_bpmn/camunda-health-monitor:latest
 ```
+
+3. Access dashboard at http://localhost:5000
 
 ---
 
