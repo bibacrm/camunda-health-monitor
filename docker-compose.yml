@@ -20,10 +20,6 @@ services:
       - CAMUNDA_NODE_1_URL=${CAMUNDA_NODE_1_URL}
       - CAMUNDA_NODE_2_NAME=${CAMUNDA_NODE_2_NAME}
       - CAMUNDA_NODE_2_URL=${CAMUNDA_NODE_2_URL}
-      - CAMUNDA_NODE_3_NAME=${CAMUNDA_NODE_3_NAME}
-      - CAMUNDA_NODE_3_URL=${CAMUNDA_NODE_3_URL}
-      - CAMUNDA_NODE_4_NAME=${CAMUNDA_NODE_4_NAME}
-      - CAMUNDA_NODE_4_URL=${CAMUNDA_NODE_4_URL}
 
       # Camunda Authentication
       - CAMUNDA_API_USER=${CAMUNDA_API_USER}
@@ -32,8 +28,6 @@ services:
       # JMX Endpoints
       - JMX_NODE_1_URL=${JMX_NODE_1_URL}
       - JMX_NODE_2_URL=${JMX_NODE_2_URL}
-      - JMX_NODE_3_URL=${JMX_NODE_3_URL}
-      - JMX_NODE_4_URL=${JMX_NODE_4_URL}
 
       # Application Configuration
       - JVM_METRICS_SOURCE=${JVM_METRICS_SOURCE:-jmx}

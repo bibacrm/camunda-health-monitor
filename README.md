@@ -3,6 +3,7 @@
 A lightweight, real-time monitoring dashboard for Camunda 7 based BPM Platform clusters. Monitor your process engines, track performance metrics, and gain insights into your workflow automation with a modern, responsive interface.
 
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
+[![Docker Hub](https://img.shields.io/docker/v/champabpmn/camunda-health-monitor?label=docker&logo=docker)](https://hub.docker.com/r/champabpmn/camunda-health-monitor) [![Docker Pulls](https://img.shields.io/docker/pulls/champabpmn/camunda-health-monitor)](https://hub.docker.com/r/champabpmn/camunda-health-monitor)
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue)
 ![Camunda](https://img.shields.io/badge/camunda-7.x-orange)
 ![Flask](https://img.shields.io/badge/flask-3.0-green)
@@ -28,6 +29,61 @@ Watch the feature demonstration on YouTube(enterprise version, but it is 80% the
 ### Node Status Monitoring
 ![Node Down Example](docs/images/node-down.png)
 *Immediate visual feedback when nodes become unavailable*
+
+---
+
+## Quick Start with Docker
+
+https://hub.docker.com/r/champabpmn/camunda-health-monitor
+
+Create a `.env` file with your configuration (example for Camunda 2 nodes cluster):
+```bash
+# Database Configuration (PostgreSQL)
+DB_NAME=PUT_YOUR_CAMUNDA_DB_NAME_HERE
+DB_USER=PUT_YOUR_CAMUNDA_DB_USERNAME_HERE
+DB_PASSWORD=PUT_YOUR_CAMUNDA_DB_PASS_HERE
+DB_HOST=PUT_YOUR_CAMUNDA_DB_HOSTNAME_OR_IP_ADDRESS_HERE
+DB_PORT=5432
+
+# Camunda Node 1 (Required)
+CAMUNDA_NODE_1_NAME=node1
+CAMUNDA_NODE_1_URL=http://PUT_YOUR_CAMUNDA_BPM_1_NODE_HOST_HERE/engine-rest
+
+# Camunda Node 2 (Optional)
+CAMUNDA_NODE_2_NAME=node2
+CAMUNDA_NODE_2_URL=http://PUT_YOUR_CAMUNDA_BPM_2_NODE_HOST_HERE/engine-rest
+
+# Camunda Node 3 (Optional)
+# CAMUNDA_NODE_3_NAME=node3
+# CAMUNDA_NODE_3_URL=http://PUT_YOUR_CAMUNDA_BPM_3_NODE_HOST_HERE/engine-rest
+
+# Camunda API Authentication (if enabled)
+CAMUNDA_API_USER=
+CAMUNDA_API_PASSWORD=
+
+# Optional: JMX/Micrometer Exporter Endpoints
+JMX_NODE_1_URL=http://PUT_YOUR_CAMUNDA_BPM_1_NODE_JVM_METRICS_HOST_HERE/metrics
+JMX_NODE_2_URL=http://PUT_YOUR_CAMUNDA_BPM_2_NODE_JVM_METRICS_HOST_HERE/metrics
+
+# JVM Metrics Source: 'jmx' or 'micrometer'(from e.g. Quarkus based installation)
+JVM_METRICS_SOURCE=jmx
+
+# Stuck Instance Detection (in days)
+STUCK_INSTANCE_DAYS=7
+
+# Application Settings
+PORT=5000
+DEBUG=false
+JSON_LOGGING=false
+SSL_VERIFY=false
+```
+Run in console:
+```bash
+docker pull champabpmn/camunda-health-monitor:latest
+docker run -d -p 5000:5000 --env-file .env champa_bpmn/camunda-health-monitor:latest
+```
+
+---
 
 ## 🌟 Features
 
@@ -61,7 +117,7 @@ Watch the feature demonstration on YouTube(enterprise version, but it is 80% the
 - Camunda 7.x running with REST API enabled
 - JMX Exporter or Micrometer based metrics API for advanced JVM metrics
 
-## Quick Start
+## Installation
 
 ### 1. Install
 
@@ -73,36 +129,47 @@ pip install -r requirements.txt
 
 ### 2. Configure
 
-Create `.env` file:
+Create `.env` file (example for Camunda 2 nodes cluster):
 
 ```env
-# Database
-DB_HOST=localhost
+# Database Configuration (PostgreSQL)
+DB_NAME=PUT_YOUR_CAMUNDA_DB_NAME_HERE
+DB_USER=PUT_YOUR_CAMUNDA_DB_USERNAME_HERE
+DB_PASSWORD=PUT_YOUR_CAMUNDA_DB_PASS_HERE
+DB_HOST=PUT_YOUR_CAMUNDA_DB_HOSTNAME_OR_IP_ADDRESS_HERE
 DB_PORT=5432
-DB_NAME=camunda
-DB_USER=camunda
-DB_PASSWORD=camunda
 
-# Camunda Nodes
+# Camunda Node 1 (Required)
 CAMUNDA_NODE_1_NAME=node1
-CAMUNDA_NODE_1_URL=http://localhost:8080/engine-rest
+CAMUNDA_NODE_1_URL=http://PUT_YOUR_CAMUNDA_BPM_1_NODE_HOST_HERE/engine-rest
 
-# Optional: Authentication
+# Camunda Node 2 (Optional)
+CAMUNDA_NODE_2_NAME=node2
+CAMUNDA_NODE_2_URL=http://PUT_YOUR_CAMUNDA_BPM_2_NODE_HOST_HERE/engine-rest
+
+# Camunda Node 3 (Optional)
+# CAMUNDA_NODE_3_NAME=node3
+# CAMUNDA_NODE_3_URL=http://PUT_YOUR_CAMUNDA_BPM_3_NODE_HOST_HERE/engine-rest
+
+# Camunda API Authentication (if enabled)
 CAMUNDA_API_USER=
 CAMUNDA_API_PASSWORD=
 
-# JMX Metrics Nodes
-JMX_NODE_1_URL=http://localhost:8080/metrics
+# Optional: JMX/Micrometer Exporter Endpoints
+JMX_NODE_1_URL=http://PUT_YOUR_CAMUNDA_BPM_1_NODE_JVM_METRICS_HOST_HERE/metrics
+JMX_NODE_2_URL=http://PUT_YOUR_CAMUNDA_BPM_2_NODE_JVM_METRICS_HOST_HERE/metrics
 
-# JMX Metrics Format
-JVM_METRICS_SOURCE=jmx  # or 'micrometer' for Quarkus
+# JVM Metrics Source: 'jmx' or 'micrometer'(from e.g. Quarkus based installation)
+JVM_METRICS_SOURCE=jmx
 
-# Settings
+# Stuck Instance Detection (in days)
+STUCK_INSTANCE_DAYS=7
+
+# Application Settings
 PORT=5000
 DEBUG=false
 JSON_LOGGING=false
 SSL_VERIFY=false
-STUCK_INSTANCE_DAYS=7
 ```
 
 ### 3. Run

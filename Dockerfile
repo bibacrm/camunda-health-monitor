@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 LABEL maintainer="Champa Intelligence <info@champa-bpmn.com>"
 LABEL description="Camunda 7 Health Monitor - Lightweight monitoring dashboard"
-LABEL version="1.0.0"
+LABEL version="1.1.0"
 
 # Set working directory
 WORKDIR /app

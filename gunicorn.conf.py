@@ -14,7 +14,7 @@ backlog = 2048
 # Worker processes
 # For I/O-bound applications like this, use (2 x CPU cores) + 1
 max_workers = multiprocessing.cpu_count() * 2 + 1
-workers = int(os.getenv('GUNICORN_WORKERS', max_workers if max_workers < 16 else 16))
+workers = int(os.getenv('GUNICORN_WORKERS', max_workers if max_workers < 8 else 8))
 worker_class = 'sync'
 worker_connections = 1000
 max_requests = 1000
