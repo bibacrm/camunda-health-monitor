@@ -43,6 +43,90 @@ class Config:
     STUCK_INSTANCE_DAYS = int(os.getenv('STUCK_INSTANCE_DAYS', '7'))
     JVM_METRICS_SOURCE = os.getenv('JVM_METRICS_SOURCE', 'jmx')
 
+    # ========================================================================
+    # AI/ML Configuration
+    # ========================================================================
+
+    # Analysis Time Window
+    # --------------------
+    # How many days back to analyze for all AI insights
+    AI_LOOKBACK_DAYS = int(os.getenv('AI_LOOKBACK_DAYS', '30'))
+
+    # Query Limits
+    # ------------
+    # Maximum instances to fetch for AI analysis (process, activity, job instances)
+    AI_MAX_INSTANCES = int(os.getenv('AI_MAX_INSTANCES', '50000'))
+
+    # Maximum incidents to fetch for pattern recognition
+    AI_MAX_INCIDENTS = int(os.getenv('AI_MAX_INCIDENTS', '1000'))
+
+    # Minimum Data Requirements
+    # --------------------------
+    # Minimum data points needed for AI analysis (instances, executions, etc.)
+    AI_MIN_DATA = int(os.getenv('AI_MIN_DATA', '10'))
+
+    # Detection Thresholds
+    # --------------------
+    # Z-score threshold for statistical anomaly detection (lower = more sensitive)
+    AI_ZSCORE_THRESHOLD = float(os.getenv('AI_ZSCORE_THRESHOLD', '1.0'))
+
+    # Maximum execution time in seconds to flag as critical stuck process
+    AI_CRITICAL_DURATION_SECONDS = int(os.getenv('AI_CRITICAL_DURATION_SECONDS', '86400'))  # 1 day
+
+    # Maximum execution time in seconds to flag as high severity
+    AI_HIGH_DURATION_SECONDS = int(os.getenv('AI_HIGH_DURATION_SECONDS', '7200'))  # 2 hours
+
+    # Maximum execution time in seconds to flag as medium severity
+    AI_MEDIUM_DURATION_SECONDS = int(os.getenv('AI_MEDIUM_DURATION_SECONDS', '3600'))  # 1 hour
+
+    # Average execution time in seconds to flag as slow
+    AI_SLOW_AVG_DURATION_SECONDS = int(os.getenv('AI_SLOW_AVG_DURATION_SECONDS', '600'))  # 10 minutes
+
+    # SLA Configuration
+    # -----------------
+    # Default SLA threshold in hours for breach prediction
+    SLA_THRESHOLD_HOURS = int(os.getenv('SLA_THRESHOLD_HOURS', '24'))
+
+    # Percentage of SLA threshold to start flagging tasks as at-risk
+    SLA_WARNING_THRESHOLD_PCT = int(os.getenv('SLA_WARNING_THRESHOLD_PCT', '70'))
+
+    # Result Limits (UI Display)
+    # --------------------------
+    # Maximum number of results to return in API responses and display in UI
+    AI_UI_RESULTS_LIMIT = int(os.getenv('AI_UI_RESULTS_LIMIT', '20'))
+
+    # UI/Frontend Configuration
+    # -------------------------
+    # Auto-refresh interval in milliseconds (default: 30 seconds)
+    UI_AUTO_REFRESH_INTERVAL_MS = int(os.getenv('UI_AUTO_REFRESH_INTERVAL_MS', '30000'))
+
+    # Archive threshold in days - instances older than this are considered archivable
+    DB_ARCHIVE_THRESHOLD_DAYS = int(os.getenv('DB_ARCHIVE_THRESHOLD_DAYS', '90'))
+
+    # Advanced ML Features
+    # --------------------
+    # Capacity forecasting: days to forecast ahead
+    AI_CAPACITY_FORECAST_DAYS = int(os.getenv('AI_CAPACITY_FORECAST_DAYS', '30'))
+
+    # Capacity forecasting: training data days
+    AI_CAPACITY_TRAINING_DAYS = int(os.getenv('AI_CAPACITY_TRAINING_DAYS', '90'))
+
+
+    # Variable impact: minimum impact percentage to report
+    AI_MIN_VARIABLE_IMPACT_PCT = int(os.getenv('AI_MIN_VARIABLE_IMPACT_PCT', '10'))
+
+    # Stuck activity: percentile threshold for stuck detection (P95 = 95th percentile)
+    AI_STUCK_ACTIVITY_PERCENTILE = int(os.getenv('AI_STUCK_ACTIVITY_PERCENTILE', '95'))
+
+    # Stuck activity: multiplier for stuck threshold (activity > P95 * multiplier)
+    AI_STUCK_ACTIVITY_MULTIPLIER = float(os.getenv('AI_STUCK_ACTIVITY_MULTIPLIER', '2.0'))
+
+    # Duration prediction: minimum confidence level to show predictions
+    AI_DURATION_PREDICTION_MIN_CONFIDENCE = float(os.getenv('AI_DURATION_PREDICTION_MIN_CONFIDENCE', '0.7'))
+
+    # Duration prediction: minimum training instances needed
+    AI_DURATION_PREDICTION_MIN_TRAINING = int(os.getenv('AI_DURATION_PREDICTION_MIN_TRAINING', '50'))
+
     @staticmethod
     def load_camunda_nodes():
         """Load Camunda nodes from environment"""

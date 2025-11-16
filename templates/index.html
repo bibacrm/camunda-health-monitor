@@ -141,6 +141,27 @@
                     </p>
                 </div>
             </div>
+
+            <!-- Tab Navigation in Header -->
+            <div class="hidden lg:flex items-center space-x-2">
+                <button @click="activeTab = 'dashboard'"
+                        :class="activeTab === 'dashboard'
+                            ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-700'
+                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                        class="inline-flex items-center space-x-2 px-4 py-2 border rounded-lg font-medium text-sm transition-colors">
+                    <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button @click="activeTab = 'ai'; if(!aiData) loadAIInsights()"
+                        :class="activeTab === 'ai'
+                            ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700'
+                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                        class="inline-flex items-center space-x-2 px-4 py-2 border rounded-lg font-medium text-sm transition-colors">
+                    <i data-lucide="brain" class="h-4 w-4"></i>
+                    <span>AI / ML Analysis</span>
+                </button>
+            </div>
+
             <div class="flex items-center space-x-4">
                 <!-- Desktop Controls -->
                 <div class="hidden md:flex items-center space-x-4">
@@ -224,6 +245,30 @@
 
             <!-- Dashboard Controls -->
             <div class="space-y-6 border-b border-gray-200 dark:border-gray-700 px-4 py-6">
+                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Navigation</h4>
+
+                <!-- Tab Navigation for Mobile -->
+                <div class="flex flex-col space-y-2">
+                    <button @click="activeTab = 'dashboard'; mobileMenuOpen = false"
+                            :class="activeTab === 'dashboard'
+                                ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700'
+                                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600'"
+                            class="flex items-center space-x-2 px-4 py-3 border rounded-lg font-medium text-sm transition-colors">
+                        <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
+                        <span>Dashboard</span>
+                    </button>
+                    <button @click="activeTab = 'ai'; if(!aiData) loadAIInsights(); mobileMenuOpen = false"
+                            :class="activeTab === 'ai'
+                                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700'
+                                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600'"
+                            class="flex items-center space-x-2 px-4 py-3 border rounded-lg font-medium text-sm transition-colors">
+                        <i data-lucide="brain" class="h-4 w-4"></i>
+                        <span>AI / ML Analysis</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="space-y-6 border-b border-gray-200 dark:border-gray-700 px-4 py-6">
                 <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Dashboard Controls</h4>
 
                 <div class="flex items-center justify-between">
@@ -277,6 +322,8 @@
         </div>
     </div>
 
+    <!-- Dashboard Tab Content -->
+    <div x-show="activeTab === 'dashboard'">
     <!-- Main Metrics Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         <!-- Engine Status -->
@@ -692,7 +739,864 @@
             </div>
         </div>
     </div>
+    </div>  <!-- End of Dashboard Tab Content -->
 
+    <!-- AI / ML Analysis Tab Content -->
+    <div x-show="activeTab === 'ai'"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100">
+
+    <!-- AI Intelligence Layer -->
+    <div class="bg-gradient-to-br from-sky-50 via-cyan-50 to-blue-50 dark:from-sky-900/20 dark:via-cyan-900/20 dark:to-blue-900/20 rounded-xl p-6 mb-6 border-2 border-sky-200 dark:border-sky-800 shadow-lg">
+
+        <!-- Header - Always Visible -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center space-x-4">
+                <i data-lucide="brain" class="h-7 w-7 text-sky-600 dark:text-sky-400"></i>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    AI Intelligence Layer
+                </h2>
+                <span class="ml-2 text-xs px-3 py-1 bg-sky-600 text-white rounded-full">POWERED BY ML</span>
+            </div>
+            <button @click="refreshAIInsights()"
+                    :disabled="aiLoading"
+                    class="inline-flex items-center px-4 py-2 border border-sky-300 dark:border-sky-600 shadow-sm text-sm font-medium rounded-md text-sky-700 dark:text-sky-300 bg-white dark:bg-gray-800 hover:bg-sky-50 dark:hover:bg-sky-900/30 disabled:opacity-50">
+                <i data-lucide="refresh-cw" class="h-4 w-4 mr-2" :class="{ 'animate-spin': aiLoading }"></i>
+                Refresh AI
+            </button>
+        </div>
+
+        <!-- AI Content -->
+
+            <!-- Loading State -->
+            <template x-if="aiLoading && !aiData">
+                <div class="flex flex-col items-center justify-center py-12">
+                    <div class="loader mb-4"></div>
+                    <p class="text-gray-600 dark:text-gray-400">AI analyzing the Camunda cluster...</p>
+                </div>
+            </template>
+
+            <!-- Error State -->
+            <template x-if="aiError && !aiData">
+                <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <p class="text-red-700 dark:text-red-300 mb-2">Failed to load AI insights</p>
+                    <button @click="refreshAIInsights()" class="text-sm text-red-600 dark:text-red-400 underline">Try Again</button>
+                </div>
+            </template>
+
+            <!-- AI Content -->
+            <template x-if="aiData">
+                <div>
+                <!-- Health Scores Row -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <!-- Cluster Health Score -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-lg border-l-4"
+                         :class="aiData.health_score.overall_score >= 80 ? 'border-l-green-500' : aiData.health_score.overall_score >= 60 ? 'border-l-yellow-500' : 'border-l-red-500'">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Cluster Health</span>
+                            <i data-lucide="activity" class="h-5 w-5 text-sky-600 dark:text-sky-400"></i>
+                        </div>
+                        <div class="flex items-baseline space-x-2 mb-2">
+                            <span class="text-5xl font-bold"
+                                  :class="aiData.health_score.overall_score >= 80 ? 'text-green-600 dark:text-green-400' : aiData.health_score.overall_score >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'"
+                                  x-text="aiData.health_score.overall_score"></span>
+                            <span class="text-2xl text-gray-500">/100</span>
+                        </div>
+                        <p class="text-xs font-semibold mb-1"
+                           :class="aiData.health_score.overall_score >= 80 ? 'text-green-600' : aiData.health_score.overall_score >= 60 ? 'text-yellow-600' : 'text-red-600'"
+                           x-text="aiData.health_score.grade"></p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400" x-text="aiData.health_score.factors"></p>
+                    </div>
+
+                    <!-- Anomalies Detected -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-lg">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Anomalies</span>
+                            <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-600 dark:text-yellow-400"></i>
+                        </div>
+                        <div class="text-4xl font-bold text-yellow-600 dark:text-yellow-400 mb-2"
+                             x-text="aiData.anomalies.anomalies?.length || 0"></div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Processes behaving abnormally
+                        </p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1"
+                           x-text="`Analyzed ${aiData.anomalies.total_analyzed || 0} processes`"></p>
+                    </div>
+
+                    <!-- SLA Risks -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-lg">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-400">SLA Risks</span>
+                            <i data-lucide="clock" class="h-5 w-5 text-red-600 dark:text-red-400"></i>
+                        </div>
+                        <div class="text-4xl font-bold text-red-600 dark:text-red-400 mb-2"
+                             x-text="aiData.sla_predictions.at_risk_tasks?.length || 0"></div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Tasks likely to breach SLA
+                        </p>
+                        <template x-if="aiData.sla_predictions.at_risk_tasks?.length > 0">
+                            <p class="text-xs font-semibold text-red-600 dark:text-red-400 mt-1">
+                                Action required!
+                            </p>
+                        </template>
+                    </div>
+
+                    <!-- Top Bottleneck Impact -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-lg">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Top Bottleneck</span>
+                            <i data-lucide="trending-down" class="h-5 w-5 text-orange-600 dark:text-orange-400"></i>
+                        </div>
+                        <template x-if="aiData.bottlenecks.bottlenecks?.length > 0">
+                            <div>
+                                <div class="text-4xl font-bold text-orange-600 dark:text-orange-400 mb-2"
+                                     x-text="aiData.bottlenecks.bottlenecks[0].impact_hours_per_week + 'h'"></div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    Wasted per week
+                                </p>
+                                <p class="text-xs text-gray-700 dark:text-gray-300 mt-1 truncate"
+                                   :title="aiData.bottlenecks.bottlenecks[0].activity_name"
+                                   x-text="aiData.bottlenecks.bottlenecks[0].activity_name"></p>
+                            </div>
+                        </template>
+                        <template x-if="!aiData.bottlenecks.bottlenecks?.length">
+                            <div>
+                                <div class="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">✓</div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">No bottlenecks detected</p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- AI Recommendations -->
+                <div class="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                    <h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center">
+                        <i data-lucide="lightbulb" class="mr-2 h-5 w-5 text-blue-600 dark:text-blue-400"></i>
+                        AI Recommendations
+                    </h4>
+                    <div class="space-y-2">
+                        <template x-for="(rec, index) in aiData.recommendations" :key="index">
+                            <div class="flex items-start p-3 bg-white dark:bg-gray-800 rounded-lg border-l-4"
+                                 :class="{
+                                     'border-l-red-500': rec.priority === 'critical',
+                                     'border-l-orange-500': rec.priority === 'high',
+                                     'border-l-yellow-500': rec.priority === 'medium',
+                                     'border-l-blue-500': rec.priority === 'low'
+                                 }">
+                                <div class="flex-shrink-0 mr-3">
+                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold"
+                                          :class="{
+                                              'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': rec.priority === 'critical',
+                                              'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400': rec.priority === 'high',
+                                              'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400': rec.priority === 'medium',
+                                              'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': rec.priority === 'low'
+                                          }"
+                                          x-text="rec.priority.toUpperCase()"></span>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="text-sm text-gray-700 dark:text-gray-300 font-medium mb-1" x-text="rec.message"></p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                                        <span class="font-semibold">Action:</span> <span x-text="rec.action"></span>
+                                    </p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Detailed Insights Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Process Anomalies -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                        <h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i data-lucide="alert-triangle" class="mr-2 h-4 w-4 text-yellow-600"></i>
+                                <span>Process Execution Anomalies</span>
+                                <span class="group relative ml-2">
+                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        ML-powered detection of processes running significantly slower than baseline. Uses statistical analysis (Z-score) and compares recent performance to historical averages.
+                                    </span>
+                                </span>
+                            </div>
+                            <span class="text-xs text-gray-500" x-text="`Last ${aiData.anomalies.detection_window_days || 7} days`"></span>
+                        </h4>
+                        <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                            <template x-if="aiData.anomalies.anomalies?.length > 0">
+                                <template x-for="anomaly in aiData.anomalies.anomalies.slice(0, aiDisplayLimits.anomalies)" :key="anomaly.process_key">
+                                    <div class="flex items-center justify-between py-2 px-3 rounded border-l-4"
+                                         :class="{
+                                             'bg-red-50 dark:bg-red-900/20 border-l-red-600': anomaly.severity === 'critical',
+                                             'bg-orange-50 dark:bg-orange-900/20 border-l-orange-500': anomaly.severity === 'high',
+                                             'bg-yellow-50 dark:bg-yellow-900/20 border-l-yellow-500': anomaly.severity === 'medium',
+                                             'bg-blue-50 dark:bg-blue-900/20 border-l-blue-500': anomaly.severity === 'low'
+                                         }">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+                                                   :title="anomaly.process_key"
+                                                   x-text="anomaly.process_key"></p>
+                                                <span class="text-xs px-2 py-0.5 rounded-full font-semibold uppercase"
+                                                      :class="{
+                                                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400': anomaly.severity === 'critical',
+                                                          'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400': anomaly.severity === 'high',
+                                                          'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400': anomaly.severity === 'medium',
+                                                          'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400': anomaly.severity === 'low'
+                                                      }"
+                                                      x-text="anomaly.severity"></span>
+                                            </div>
+                                            <p class="text-xs text-gray-600 dark:text-gray-400">
+                                                Baseline: <span x-text="formatDuration(anomaly.baseline_avg_ms)"></span> →
+                                                Recent: <span x-text="formatDuration(anomaly.recent_avg_ms)"></span>
+                                            </p>
+                                            <template x-if="anomaly.max_duration_ms && anomaly.max_duration_ms > 3600000">
+                                                <p class="text-xs text-red-600 dark:text-red-400 mt-1">
+                                                    ⚠️ Max: <span x-text="formatDuration(anomaly.max_duration_ms)"></span>
+                                                </p>
+                                            </template>
+                                            <template x-if="anomaly.anomaly_types?.includes('extreme_duration')">
+                                                <p class="text-xs text-red-600 dark:text-red-400 mt-1">
+                                                    🔴 Potential stuck/hanging process detected
+                                                </p>
+                                            </template>
+                                        </div>
+                                        <div class="ml-2 text-right">
+                                            <span class="text-sm font-bold"
+                                                  :class="anomaly.deviation_pct > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'"
+                                                  x-text="(anomaly.deviation_pct > 0 ? '+' : '') + anomaly.deviation_pct + '%'"></span>
+                                            <template x-if="anomaly.z_score > 0">
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    Z: <span x-text="anomaly.z_score"></span>
+                                                </p>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </template>
+                            <template x-if="!aiData.anomalies.anomalies?.length">
+                                <div class="text-center py-8">
+                                    <template x-if="aiData.anomalies.health_status === 'excellent'">
+                                        <div>
+                                            <i data-lucide="check-circle" class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
+                                            <p class="text-sm font-semibold text-green-600 dark:text-green-400">Stable Performance!</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 px-4" x-text="aiData.anomalies.message || 'All processes executing consistently'"></p>
+                                        </div>
+                                    </template>
+                                    <template x-if="aiData.anomalies.health_status !== 'excellent'">
+                                        <p class="text-sm text-gray-500 dark:text-gray-400" x-text="aiData.anomalies.message || 'No anomalies detected'"></p>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Incident Patterns -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                        <h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i data-lucide="alert-circle" class="mr-2 h-4 w-4 text-orange-600"></i>
+                                <span>Top Incident Patterns</span>
+                                <span class="group relative ml-2">
+                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        Analyzes historical incident data or runtime job failures to identify recurring error patterns. Groups by error type and frequency to help prioritize fixes.
+                                    </span>
+                                </span>
+                            </div>
+                            <span class="text-xs text-gray-500" x-text="`${aiData.incidents.unique_patterns || 0} unique patterns`"></span>
+                        </h4>
+
+                        <!-- Data source warning if from runtime jobs -->
+                        <template x-if="aiData.incidents.data_source === 'runtime_jobs'">
+                            <div class="mb-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                                <i data-lucide="info" class="h-3 w-3 inline mr-1"></i>
+                                <span class="text-yellow-700 dark:text-yellow-300">Analyzing active job exceptions (incident history not logged)</span>
+                            </div>
+                        </template>
+
+                        <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                            <template x-if="aiData.incidents.patterns?.length > 0">
+                                <template x-for="(pattern,index) in aiData.incidents.patterns.slice(0, aiDisplayLimits.incidents)" :key="pattern.incident_type + index">
+                                    <div class="p-3 bg-orange-50 dark:bg-orange-900/20 rounded border-l-2 border-l-orange-500">
+                                        <div class="flex items-start justify-between mb-1">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="pattern.incident_type"></p>
+                                            <span class="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full font-semibold"
+                                                  x-text="pattern.occurrence_count + 'x'"></span>
+                                        </div>
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-2 truncate"
+                                           :title="pattern.error_message"
+                                           x-text="pattern.error_message"></p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-500">
+                                            <template x-if="pattern.source === 'runtime_jobs'">
+                                                <span>
+                                                    <span x-text="pattern.retries_exhausted"></span> with no retries left ·
+                                                    <span x-text="pattern.affected_processes.length"></span> instance(s)
+                                                </span>
+                                            </template>
+                                            <template x-if="pattern.source !== 'runtime_jobs'">
+                                                <span>
+                                                    <span x-text="pattern.frequency_per_day"></span> per day ·
+                                                    <span x-text="pattern.affected_processes.length"></span> process(es) affected
+                                                </span>
+                                            </template>
+                                        </p>
+                                    </div>
+                                </template>
+                            </template>
+                            <template x-if="!aiData.incidents.patterns?.length">
+                                <div class="text-center py-8">
+                                    <template x-if="aiData.incidents.health_status === 'excellent'">
+                                        <div>
+                                            <i data-lucide="check-circle" class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
+                                            <p class="text-sm font-semibold text-green-600 dark:text-green-400">System Healthy!</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" x-text="aiData.incidents.message || 'No incidents detected'"></p>
+                                        </div>
+                                    </template>
+                                    <template x-if="aiData.incidents.health_status !== 'excellent'">
+                                        <p class="text-sm text-gray-500 dark:text-gray-400" x-text="aiData.incidents.message || 'No incident patterns found'"></p>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Process Bottlenecks -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                        <h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i data-lucide="trending-down" class="mr-2 h-4 w-4 text-red-600"></i>
+                                <span>Top Process Bottlenecks</span>
+                                <span class="group relative ml-2">
+                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        Identifies activities with longest execution times using P95 percentile analysis. Shows potential optimization targets and estimated time savings per week.
+                                    </span>
+                                </span>
+                            </div>
+                            <span class="text-xs text-gray-500" x-text="`${aiData.bottlenecks.total_activities_analyzed || 0} activities`"></span>
+                        </h4>
+                        <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                            <template x-if="aiData.bottlenecks.bottlenecks?.length > 0">
+                                <template x-for="(bottleneck, index) in aiData.bottlenecks.bottlenecks.slice(0, aiDisplayLimits.bottlenecks)" :key="bottleneck.activity_id + index">
+                                    <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded border-l-2 border-l-red-500">
+                                        <div class="flex items-start justify-between mb-1">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1"
+                                               :title="bottleneck.activity_name"
+                                               x-text="bottleneck.activity_name"></p>
+                                            <span class="text-sm font-bold text-red-600 dark:text-red-400 ml-2"
+                                                  x-text="bottleneck.impact_hours_per_week + 'h/wk'"></span>
+                                        </div>
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                            Avg: <span x-text="formatDuration(bottleneck.avg_duration_ms)"></span> ·
+                                            P95: <span x-text="formatDuration(bottleneck.p95_duration_ms)"></span>
+                                        </p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-500" x-text="`${bottleneck.executions} executions in ${bottleneck.process_key}`"></p>
+                                    </div>
+                                </template>
+                            </template>
+                            <template x-if="!aiData.bottlenecks.bottlenecks?.length">
+                                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No significant bottlenecks detected</p>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Job Failure Predictions -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                        <h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i data-lucide="zap" class="mr-2 h-4 w-4 text-purple-600"></i>
+                                <span>Job Failure Predictions</span>
+                                <span class="group relative ml-2">
+                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        Predicts which job types are at risk of failure based on historical failure rates. Helps prioritize preventive maintenance and error handling improvements.
+                                    </span>
+                                </span>
+                            </div>
+                            <span class="text-xs text-gray-500" x-text="`${aiData.job_failures.total_jobs_analyzed || 0} job types`"></span>
+                        </h4>
+                        <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                            <template x-if="aiData.job_failures.predictions?.length > 0">
+                                <template x-for="pred in aiData.job_failures.predictions.slice(0, aiDisplayLimits.jobPredictions)" :key="pred.job_type">
+                                    <div class="p-3 bg-purple-50 dark:bg-purple-900/20 rounded border-l-2"
+                                         :class="{
+                                             'border-l-red-500': pred.risk_level === 'high',
+                                             'border-l-yellow-500': pred.risk_level === 'medium',
+                                             'border-l-green-500': pred.risk_level === 'low'
+                                         }">
+                                        <div class="flex items-start justify-between mb-1">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1"
+                                               :title="pred.job_type"
+                                               x-text="pred.job_type"></p>
+                                            <span class="text-sm font-bold ml-2"
+                                                  :class="{
+                                                      'text-red-600 dark:text-red-400': pred.risk_level === 'high',
+                                                      'text-yellow-600 dark:text-yellow-400': pred.risk_level === 'medium',
+                                                      'text-green-600 dark:text-green-400': pred.risk_level === 'low'
+                                                  }"
+                                                  x-text="pred.failure_rate_pct + '%'"></span>
+                                        </div>
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                            <span x-text="pred.failed_count"></span> failed /
+                                            <span x-text="pred.total_executions"></span> total executions
+                                        </p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-500" x-text="pred.recommendation"></p>
+                                    </div>
+                                </template>
+                            </template>
+                            <template x-if="!aiData.job_failures.predictions?.length">
+                                <div class="text-center py-8">
+                                    <template x-if="aiData.job_failures.data_source === 'none'">
+                                        <div>
+                                            <i data-lucide="info" class="h-12 w-12 text-blue-500 dark:text-blue-400 mx-auto mb-2"></i>
+                                            <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">Job History Not Available</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 px-4" x-text="aiData.job_failures.message || 'Job logging may be disabled or processes use sync execution'"></p>
+                                        </div>
+                                    </template>
+                                    <template x-if="aiData.job_failures.data_source !== 'none'">
+                                        <div>
+                                            <i data-lucide="check-circle" class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
+                                            <p class="text-sm font-semibold text-green-600 dark:text-green-400">All Jobs Healthy!</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" x-text="aiData.job_failures.message || 'All jobs executing successfully'"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Node Performance Rankings & Process Leaderboard -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Node Performance Rankings -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                        <h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center">
+                            <i data-lucide="award" class="mr-2 h-4 w-4 text-indigo-600"></i>
+                            <span>Node Performance Rankings</span>
+                            <span class="group relative ml-2">
+                                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                    Ranks cluster nodes based on JVM health metrics (CPU, memory, GC efficiency). Helps identify underperforming nodes that may need attention.
+                                </span>
+                            </span>
+                        </h4>
+                        <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                            <template x-if="aiData.node_performance.rankings?.length > 0">
+                                <template x-for="node in aiData.node_performance.rankings" :key="node.node_name">
+                                    <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
+                                        <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm mr-3"
+                                             :class="{
+                                                 'bg-yellow-400 text-yellow-900': node.rank === 1,
+                                                 'bg-gray-300 text-gray-700': node.rank === 2,
+                                                 'bg-orange-300 text-orange-900': node.rank === 3,
+                                                 'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-200': node.rank > 3
+                                             }"
+                                             x-text="node.rank"></div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="node.node_name"></p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400" x-text="node.recommendation"></p>
+                                        </div>
+                                        <div class="ml-2 text-right">
+                                            <span class="text-lg font-bold"
+                                                  :class="{
+                                                      'text-green-600 dark:text-green-400': node.performance_score >= 80,
+                                                      'text-yellow-600 dark:text-yellow-400': node.performance_score >= 60 && node.performance_score < 80,
+                                                      'text-red-600 dark:text-red-400': node.performance_score < 60
+                                                  }"
+                                                  x-text="node.performance_score"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </template>
+                            <template x-if="!aiData.node_performance.rankings?.length">
+                                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Need at least 2 nodes for comparison</p>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Process Performance Leaderboard -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                        <h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i data-lucide="trophy" class="mr-2 h-4 w-4 text-yellow-600"></i>
+                                <span>Process Performance Leaderboard</span>
+                                <span class="group relative ml-2">
+                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        Ranks processes by performance grade (A-F) based on completion rate, average duration, and consistency. Shows best and worst performing processes.
+                                    </span>
+                                </span>
+                            </div>
+                            <span class="text-xs text-gray-500" x-text="`${aiData.process_leaderboard.total_processes || 0} processes`"></span>
+                        </h4>
+                        <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                            <template x-if="aiData.process_leaderboard.leaderboard?.length > 0">
+                                <template x-for="proc in aiData.process_leaderboard.leaderboard.slice(0, aiDisplayLimits.leaderboard)" :key="proc.process_key">
+                                    <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
+                                        <div class="flex-shrink-0 w-10 h-10 rounded flex items-center justify-center font-bold text-lg mr-3"
+                                             :class="{
+                                                 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': proc.grade === 'A',
+                                                 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': proc.grade === 'B',
+                                                 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400': proc.grade === 'C',
+                                                 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400': proc.grade === 'D',
+                                                 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': proc.grade === 'F'
+                                             }"
+                                             x-text="proc.grade"></div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+                                               :title="proc.process_key"
+                                               x-text="proc.process_key"></p>
+                                            <p class="text-xs text-gray-600 dark:text-gray-400">
+                                                <span x-text="proc.instance_count"></span> instances ·
+                                                Avg: <span x-text="formatDuration(proc.avg_duration_ms)"></span>
+                                            </p>
+                                        </div>
+                                        <div class="ml-2 text-right text-xs">
+                                            <p class="text-green-600 dark:text-green-400" x-text="proc.completion_rate_pct + '%'"></p>
+                                            <p class="text-gray-500 dark:text-gray-400">complete</p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </template>
+                            <template x-if="!aiData.process_leaderboard.leaderboard?.length">
+                                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No process data available</p>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced ML Features Row -->
+                <div class="bg-gradient-to-r from-cyan-100/70 to-sky-50 dark:from-cyan-900/20 dark:to-sky-900/20 rounded-lg p-4 mt-6 mb-6 border border-cyan-200 dark:border-cyan-700"
+                     x-intersect.once="loadAdvancedMLFeatures()">
+                    <div class="flex items-center mb-4">
+                        <i data-lucide="sparkles" class="h-5 w-5 text-cyan-600 dark:text-cyan-400 mr-2"></i>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Advanced ML Features</h3>
+                    </div>
+
+                    <!-- Smart Stuck Activities & Capacity Forecast -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Smart Stuck Activity Detection -->
+                        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                                    <i data-lucide="hourglass" class="mr-2 h-4 w-4 text-red-600"></i>
+                                    Smart Stuck Activities
+                                </h4>
+                                <div class="group relative">
+                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <div class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        Statistical P95-based detection. Identifies activities taking abnormally long compared to historical patterns (not hardcoded timeouts).
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Loading/fetch button -->
+                            <template x-if="!stuckActivitiesData && !stuckActivitiesLoading">
+                                <div class="text-center py-8">
+                                    <button @click="loadStuckActivities()"
+                                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-cyan-600 hover:bg-cyan-700">
+                                        <i data-lucide="play-circle" class="h-4 w-4 mr-2"></i>
+                                        Analyze Activities
+                                    </button>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Click to detect stuck activities</p>
+                                </div>
+                            </template>
+
+                            <!-- Loading state -->
+                            <template x-if="stuckActivitiesLoading">
+                                <div class="flex flex-col items-center justify-center py-8">
+                                    <div class="loader mb-2"></div>
+                                    <p class="text-xs text-gray-500">Analyzing activity patterns...</p>
+                                </div>
+                            </template>
+
+                            <!-- Results -->
+                            <template x-if="stuckActivitiesData && !stuckActivitiesLoading">
+                                <div>
+                                    <div class="flex items-center justify-between mb-3 p-2 bg-gray-50 dark:bg-gray-700/30 rounded">
+                                        <span class="text-sm text-gray-600 dark:text-gray-400">
+                                            Found: <span class="font-bold" x-text="stuckActivitiesData.total_found"></span> stuck
+                                        </span>
+                                        <span class="text-xs text-gray-500">
+                                            P<span x-text="stuckActivitiesData.threshold_percentile"></span> × <span x-text="stuckActivitiesData.threshold_multiplier"></span>
+                                        </span>
+                                    </div>
+
+                                    <div class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                                        <template x-if="stuckActivitiesData.stuck_activities?.length > 0">
+                                            <template x-for="activity in stuckActivitiesData.stuck_activities.slice(0, 10)" :key="activity.activity_instance_id">
+                                                <div class="p-3 rounded border-l-4"
+                                                     :class="{
+                                                         'bg-red-50 dark:bg-red-900/20 border-l-red-600': activity.severity === 'critical',
+                                                         'bg-orange-50 dark:bg-orange-900/20 border-l-orange-500': activity.severity === 'high',
+                                                         'bg-yellow-50 dark:bg-yellow-900/20 border-l-yellow-500': activity.severity === 'medium'
+                                                     }">
+                                                    <div class="flex items-start justify-between">
+                                                        <div class="flex-1 min-w-0">
+                                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+                                                               :title="activity.activity_name"
+                                                               x-text="activity.activity_name"></p>
+                                                            <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                                                Process: <span x-text="activity.process_key"></span>
+                                                            </p>
+                                                        </div>
+                                                        <div class="ml-2 text-right">
+                                                            <span class="text-lg font-bold"
+                                                                  :class="{
+                                                                      'text-red-600 dark:text-red-400': activity.severity === 'critical',
+                                                                      'text-orange-600 dark:text-orange-400': activity.severity === 'high',
+                                                                      'text-yellow-600 dark:text-yellow-400': activity.severity === 'medium'
+                                                                  }"
+                                                                  x-text="activity.duration_ratio + 'x'"></span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="mt-2 flex items-center justify-between text-xs">
+                                                        <span class="text-gray-500 dark:text-gray-400">
+                                                            Stuck for: <span class="font-semibold" x-text="activity.stuck_for_hours + 'h'"></span>
+                                                        </span>
+                                                        <template x-if="activity.z_score">
+                                                            <span class="text-gray-500 dark:text-gray-400">
+                                                                Z-score: <span class="font-semibold" x-text="activity.z_score"></span>
+                                                            </span>
+                                                        </template>
+                                                    </div>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" x-text="activity.message"></p>
+                                                </div>
+                                            </template>
+                                        </template>
+
+                                        <template x-if="!stuckActivitiesData.stuck_activities?.length">
+                                            <div class="text-center py-6">
+                                                <i data-lucide="check-circle" class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
+                                                <p class="text-sm font-semibold text-green-600 dark:text-green-400">All Clear!</p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" x-text="stuckActivitiesData.message"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Capacity Forecast -->
+                        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                                    <i data-lucide="trending-up" class="mr-2 h-4 w-4 text-blue-600"></i>
+                                    Capacity Forecast
+                                </h4>
+                                <div class="group relative">
+                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <div class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        30-day load prediction using time series analysis. Helps with infrastructure and budget planning.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Loading/fetch button -->
+                            <template x-if="!capacityForecastData && !capacityForecastLoading">
+                                <div class="text-center py-8">
+                                    <button @click="loadCapacityForecast()"
+                                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                                        <i data-lucide="bar-chart-3" class="h-4 w-4 mr-2"></i>
+                                        Generate Forecast
+                                    </button>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Click to forecast capacity needs</p>
+                                </div>
+                            </template>
+
+                            <!-- Loading state -->
+                            <template x-if="capacityForecastLoading">
+                                <div class="flex flex-col items-center justify-center py-8">
+                                    <div class="loader mb-2"></div>
+                                    <p class="text-xs text-gray-500">Forecasting capacity...</p>
+                                </div>
+                            </template>
+
+                            <!-- Results -->
+                            <template x-if="capacityForecastData && !capacityForecastLoading">
+                                <div>
+                                    <!-- Summary stats -->
+                                    <div class="grid grid-cols-2 gap-3 mb-4">
+                                        <div class="p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">Growth Rate</p>
+                                            <p class="text-lg font-bold"
+                                               :class="{
+                                                   'text-green-600 dark:text-green-400': capacityForecastData.growth_rate_per_day < 5,
+                                                   'text-yellow-600 dark:text-yellow-400': capacityForecastData.growth_rate_per_day >= 5 && capacityForecastData.growth_rate_per_day < 15,
+                                                   'text-red-600 dark:text-red-400': capacityForecastData.growth_rate_per_day >= 15
+                                               }"
+                                               x-text="capacityForecastData.growth_rate_per_day + '/day'"></p>
+                                        </div>
+                                        <div class="p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">Confidence</p>
+                                            <p class="text-lg font-bold text-blue-600 dark:text-blue-400"
+                                               x-text="Math.round(capacityForecastData.trend_confidence * 100) + '%'"></p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Peak patterns -->
+                                    <template x-if="capacityForecastData.patterns">
+                                        <div class="mb-3">
+                                            <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Peak Hours:</p>
+                                            <div class="flex flex-wrap gap-2">
+                                                <template x-for="hour in capacityForecastData.patterns.peak_hours?.slice(0, 3)" :key="hour.hour">
+                                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                                        <span x-text="hour.hour + ':00'"></span>
+                                                        <span class="ml-1 text-blue-500" x-text="'(' + Math.round(hour.avg_instances) + ')'"></span>
+                                                    </span>
+                                                </template>
+                                            </div>
+
+                                            <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 mt-3">Busiest Days:</p>
+                                            <div class="flex flex-wrap gap-2">
+                                                <template x-for="day in capacityForecastData.patterns.busiest_days?.slice(0, 3)" :key="day.day">
+                                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400">
+                                                        <span x-text="day.day"></span>
+                                                        <span class="ml-1 text-purple-500" x-text="'(' + Math.round(day.avg_instances) + ')'"></span>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- 7-day forecast preview -->
+                                    <div class="mt-3">
+                                        <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Next 7 Days:</p>
+                                        <div class="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
+                                            <template x-for="day in capacityForecastData.forecast?.slice(0, 7)" :key="day.day">
+                                                <div class="flex items-center justify-between text-xs py-1">
+                                                    <span class="text-gray-600 dark:text-gray-400" x-text="day.date"></span>
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="font-semibold text-gray-900 dark:text-gray-100"
+                                                              x-text="day.predicted_instances + ' instances'"></span>
+                                                        <span class="px-1 rounded text-xs"
+                                                              :class="{
+                                                                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': day.trend === 'increasing',
+                                                                  'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': day.trend === 'decreasing',
+                                                                  'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400': day.trend === 'stable'
+                                                              }"
+                                                              x-text="day.trend"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Duration Prediction Tool -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                                <i data-lucide="timer" class="mr-2 h-4 w-4 text-green-600"></i>
+                                Process Duration Analysis
+                            </h4>
+                            <div class="flex items-center space-x-2">
+                                <span class="group relative">
+                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        ML-powered prediction using Random Forest. Trained on historical patterns including time-of-day and day-of-week factors. Shows all processes sorted by longest predicted duration.
+                                    </span>
+                                </span>
+                                <button @click="loadAllDurationPredictions()"
+                                        :disabled="durationPredictionsLoading"
+                                        class="inline-flex items-center px-3 py-1.5 border border-green-300 dark:border-green-600 text-xs font-medium rounded-md text-green-700 dark:text-green-300 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/30 disabled:opacity-50">
+                                    <i data-lucide="refresh-cw" class="h-3 w-3 mr-1" :class="{ 'animate-spin': durationPredictionsLoading }"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Auto-load on first view -->
+                        <template x-if="!durationPredictions && !durationPredictionsLoading && !durationPredictionsLoaded">
+                            <div class="text-center py-8">
+                                <button @click="loadAllDurationPredictions()"
+                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                                    <i data-lucide="zap" class="h-4 w-4 mr-2"></i>
+                                    Analyze All Processes
+                                </button>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Click to predict durations for all process definitions</p>
+                            </div>
+                        </template>
+
+                        <!-- Loading State -->
+                        <template x-if="durationPredictionsLoading">
+                            <div class="flex flex-col items-center justify-center py-8">
+                                <div class="loader mb-2"></div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Analyzing process patterns...</p>
+                            </div>
+                        </template>
+
+                        <!-- Results Table -->
+                        <template x-if="durationPredictions && !durationPredictionsLoading">
+                            <div class="mt-3">
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                        <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Process</th>
+                                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Predicted</th>
+                                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">P50</th>
+                                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">P95</th>
+                                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Confidence</th>
+                                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Instances</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                            <template x-for="(pred, index) in durationPredictions.slice(0, 20)" :key="pred.process_key">
+                                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                                    <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100"
+                                                        :title="pred.process_key">
+                                                        <span class="truncate max-w-xs inline-block" x-text="pred.process_key"></span>
+                                                    </td>
+                                                    <td class="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                                        <span class="font-bold text-green-600 dark:text-green-400"
+                                                              x-text="pred.predicted_duration_ms != null ? formatDuration(pred.predicted_duration_ms) : 'N/A'"></span>
+                                                    </td>
+                                                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 text-right"
+                                                        x-text="pred.percentiles?.p50_ms != null ? formatDuration(pred.percentiles.p50_ms) : '-'"></td>
+                                                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 text-right"
+                                                        x-text="pred.percentiles?.p95_ms != null ? formatDuration(pred.percentiles.p95_ms) : '-'"></td>
+                                                    <td class="px-3 py-2 whitespace-nowrap text-center">
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                                              :class="{
+                                                                  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': pred.confidence_pct >= 80,
+                                                                  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': pred.confidence_pct >= 60 && pred.confidence_pct < 80,
+                                                                  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': pred.confidence_pct < 60
+                                                              }"
+                                                              x-text="pred.confidence_pct ? pred.confidence_pct + '%' : 'N/A'"></span>
+                                                    </td>
+                                                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center"
+                                                        x-text="pred.instance_count || 0"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <template x-if="durationPredictions.length > 20">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                                        Showing top 20 of <span x-text="durationPredictions.length"></span> processes
+                                    </p>
+                                </template>
+                                <template x-if="durationPredictions.length === 0">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No process predictions available</p>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+            </div>
+        </template>
+
+    </div>  <!-- End of AI Intelligence Layer -->
+    </div>  <!-- End of AI / ML Analysis Tab Content -->
+
+    <!-- Cluster Nodes & Database (on Dashboard Tab) -->
+    <div x-show="activeTab === 'dashboard'">
     <!-- Cluster Nodes -->
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-300 dark:border-gray-600 overflow-hidden mb-6">
     <div class="px-4 py-2 bg-gradient-to-r from-cyan-50 to-white dark:from-cyan-900 dark:to-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
@@ -1069,7 +1973,7 @@
                                 <i data-lucide="archive" class="h-4 w-4 text-yellow-600 dark:text-yellow-400 mr-2"></i>
                                 <span class="text-sm text-yellow-800 dark:text-yellow-200">
                                 <strong x-text="formatNumber(databaseMetrics.archivable_instances)"></strong>
-                                instances ready for archiving (>90 days old)
+                                instances ready for archiving (><span x-text="config.archiveDaysThreshold"></span> days old)
                             </span>
                             </div>
                         </div>
@@ -1166,6 +2070,7 @@
             </template>
         </div>
     </div>
+    </div>  <!-- End of Dashboard Tab (Cluster Nodes & Database) -->
 
 </main>
 
@@ -1221,6 +2126,9 @@
             refreshInterval: null,
             mobileMenuOpen: false,
 
+            // Tab navigation
+            activeTab: 'dashboard',  // 'dashboard' or 'ai'
+
             // Lazy loading states
             metricLoading: {},
             metricData: {},
@@ -1228,6 +2136,32 @@
             databaseMetricsLoading: false,
             databaseMetrics: null,
             databaseMetricsError: null,
+
+            // AI/ML states
+            aiLoading: false,
+            aiData: null,
+            aiError: null,
+            aiExpanded: false,
+
+            // NEW: Advanced ML features states
+            stuckActivitiesData: null,
+            stuckActivitiesLoading: false,
+            capacityForecastData: null,
+            capacityForecastLoading: false,
+            durationPredictionKey: '',
+            durationPredictionData: null,
+            durationPredictionLoading: false,
+            durationPredictions: null,
+            durationPredictionsLoading: false,
+            durationPredictionsLoaded: false,
+
+            // UI Configuration - loaded from backend config (single source of truth)
+            config: {{ ui_config|tojson|safe }},
+
+            // Legacy property for backward compatibility
+            get aiDisplayLimits() {
+                return this.config.aiDisplayLimits;
+            },
 
             init() {
                 // Set dark mode from localStorage on init
@@ -1253,7 +2187,7 @@
             toggleAutoRefresh() {
                 this.autoRefresh = !this.autoRefresh;
                 if (this.autoRefresh) {
-                    this.refreshInterval = setInterval(() => this.refreshData(), 30000);
+                    this.refreshInterval = setInterval(() => this.refreshData(), this.config.autoRefreshInterval);
                 } else {
                     clearInterval(this.refreshInterval);
                 }
@@ -1328,6 +2262,123 @@
                     this.databaseMetricsError = error.message;
                 } finally {
                     this.databaseMetricsLoading = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            },
+
+            // AI Insights loading
+            async loadAIInsights() {
+                if (this.aiLoading || this.aiData) return;
+
+                this.aiLoading = true;
+                this.aiError = null;
+
+                try {
+                    const response = await fetch('/api/ai/insights');
+                    if (!response.ok) {
+                        throw new Error(`Server responded with ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    this.aiData = data;
+                } catch (error) {
+                    console.error('Error loading AI insights:', error);
+                    this.aiError = error.message;
+                } finally {
+                    this.aiLoading = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            },
+
+            async refreshAIInsights() {
+                this.aiData = null;
+                await this.loadAIInsights();
+            },
+
+            // NEW: Advanced ML Features
+            loadAdvancedMLFeatures() {
+                // Lazy load both advanced features when section becomes visible
+                if (!this.stuckActivitiesData && !this.stuckActivitiesLoading) {
+                    this.loadStuckActivities();
+                }
+                if (!this.capacityForecastData && !this.capacityForecastLoading) {
+                    this.loadCapacityForecast();
+                }
+            },
+
+            async loadStuckActivities() {
+                if (this.stuckActivitiesLoading) return;
+
+                this.stuckActivitiesLoading = true;
+                try {
+                    const response = await fetch('/api/ai/stuck-activities-smart');
+                    if (response.ok) {
+                        this.stuckActivitiesData = await response.json();
+                    }
+                } catch (error) {
+                    console.error('Error loading stuck activities:', error);
+                } finally {
+                    this.stuckActivitiesLoading = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            },
+
+            async loadCapacityForecast() {
+                if (this.capacityForecastLoading) return;
+
+                this.capacityForecastLoading = true;
+                try {
+                    const response = await fetch('/api/ai/capacity-forecast');
+                    if (response.ok) {
+                        this.capacityForecastData = await response.json();
+                    }
+                } catch (error) {
+                    console.error('Error loading capacity forecast:', error);
+                } finally {
+                    this.capacityForecastLoading = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            },
+
+            async loadDurationPrediction() {
+                if (!this.durationPredictionKey || this.durationPredictionLoading) return;
+
+                this.durationPredictionLoading = true;
+                try {
+                    const response = await fetch(`/api/ai/predict-duration/${encodeURIComponent(this.durationPredictionKey)}`);
+                    if (response.ok) {
+                        this.durationPredictionData = await response.json();
+                    }
+                } catch (error) {
+                    console.error('Error loading duration prediction:', error);
+                } finally {
+                    this.durationPredictionLoading = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            },
+
+            async loadAllDurationPredictions() {
+                if (this.durationPredictionsLoading) return;
+
+                this.durationPredictionsLoading = true;
+                this.durationPredictionsLoaded = true;
+                try {
+                    const response = await fetch('/api/ai/predict-all-durations');
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Sort by predicted duration (longest first), treating null as 0
+                        this.durationPredictions = (data.predictions || []).sort((a, b) => {
+                            const aDuration = a.predicted_duration_ms != null ? a.predicted_duration_ms : 0;
+                            const bDuration = b.predicted_duration_ms != null ? b.predicted_duration_ms : 0;
+                            return bDuration - aDuration;
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading all duration predictions:', error);
+                } finally {
+                    this.durationPredictionsLoading = false;
                     this.$nextTick(() => lucide.createIcons());
                 }
             },

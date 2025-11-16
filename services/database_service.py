@@ -3,6 +3,7 @@ Database Service
 Handles all database-related operations and metrics collection
 """
 import logging
+from flask import current_app
 from helpers.error_handler import safe_execute
 from helpers.db_helper import execute_query
 
@@ -62,12 +63,13 @@ def collect_database_metrics():
     )
 
     # Archivable instances
+    archive_days = current_app.config.get('DB_ARCHIVE_THRESHOLD_DAYS', 90)
     archivable = safe_execute(
-        lambda: execute_query("""
+        lambda: execute_query(f"""
             SELECT count(*) AS count
             FROM act_hi_procinst
             WHERE end_time_ IS NOT NULL
-            AND end_time_ < now() - interval '90 days'
+            AND end_time_ < now() - interval '{archive_days} days'
         """),
         default_value=[],
         context="Fetching archivable instances"

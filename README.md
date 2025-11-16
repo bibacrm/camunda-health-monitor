@@ -1,12 +1,18 @@
-# Camunda Health Monitor
+# Camunda Health Monitor & Advanced AI/ML Analytics
 
 A lightweight, real-time monitoring dashboard for Camunda 7 based BPM Platform clusters. Monitor your process engines, track performance metrics, and gain insights into your workflow automation with a modern, responsive interface.
 
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 [![Docker Hub](https://img.shields.io/docker/v/champabpmn/camunda-health-monitor?label=docker&logo=docker)](https://hub.docker.com/r/champabpmn/camunda-health-monitor) [![Docker Pulls](https://img.shields.io/docker/pulls/champabpmn/camunda-health-monitor)](https://hub.docker.com/r/champabpmn/camunda-health-monitor)
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue)
-![Camunda](https://img.shields.io/badge/camunda-7.x-orange)
 ![Flask](https://img.shields.io/badge/flask-3.0-green)
+
+**✅ Verified Compatible With:**
+
+![Camunda 7](https://img.shields.io/badge/Camunda_7-✓_tested-orange?logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTIgMkM2LjQ4IDIgMiA2LjQ4IDIgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnoiIGZpbGw9IiNGRjYxMDAiLz48L3N2Zz4=)
+![Operaton](https://img.shields.io/badge/Operaton-✓_tested-blue?logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCIgZmlsbD0iIzAwN0RCQyIvPjwvc3ZnPg==)
+![CIB Seven](https://img.shields.io/badge/CIB_Seven-✓_tested-green?logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTIgMkw0IDZWMTJDNCA3LjU1IDcuNTUgMyAxMiAyWiIgZmlsbD0iIzI1OUI2NyIvPjwvc3ZnPg==)
+![eximeeBPMS](https://img.shields.io/badge/eximeeBPMS-✓_tested-purple?logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSI0IiB5PSI0IiB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHJ4PSIyIiBmaWxsPSIjOEM1MEJEIi8+PC9zdmc+)
 
 ## 🎥 Video Demo
 
@@ -71,6 +77,14 @@ JVM_METRICS_SOURCE=jmx
 # Stuck Instance Detection (in days)
 STUCK_INSTANCE_DAYS=7
 
+# AI/ML Configuration
+AI_LOOKBACK_DAYS=30
+AI_MAX_INSTANCES=50000
+AI_MAX_INCIDENTS=1000
+AI_MIN_DATA=10
+AI_UI_RESULTS_LIMIT=20
+SLA_THRESHOLD_HOURS=24
+
 # Application Settings
 PORT=5000
 DEBUG=false
@@ -83,7 +97,9 @@ docker pull champabpmn/camunda-health-monitor:latest
 docker run -d -p 5000:5000 --env-file .env champa_bpmn/camunda-health-monitor:latest
 ```
 
-3. Access dashboard at http://localhost:5000
+Access dashboard at http://localhost:5000
+
+In case you Camunda 7 based system does not share JVM metrics - follow easy setup below (JMX Exporter section).
 
 ---
 
@@ -93,6 +109,51 @@ docker run -d -p 5000:5000 --env-file .env champa_bpmn/camunda-health-monitor:la
 - **Multi-node cluster support** - Monitor all your Camunda nodes from a single dashboard
 - **Engine health status** - Track node availability and response times
 - **Database connectivity** - Monitor PostgreSQL connection health and latency
+
+### 🤖 Advanced AI/ML Features
+
+**Zero Infrastructure Required** - All AI features use ONLY your existing Camunda database!
+
+#### Machine Learning Capabilities
+- **🎯 Smart Stuck Activity Detection** - Statistical P95-based detection (not hardcoded timeouts)
+  - Identifies activities taking abnormally long compared to historical patterns
+  - Provides Z-scores and severity levels (critical/high/medium)
+  - Dynamic thresholds that adapt to your workload
+
+- **📊 Process Duration Prediction** - ML-powered completion time forecasting
+  - Random Forest regression trained on historical data
+  - Predicts duration based on time-of-day and day-of-week patterns
+  - Confidence scores (R²) and percentile distributions (P50, P75, P95)
+  - Helps with SLA planning and customer communication
+
+- **📈 Capacity Forecasting** - Future load prediction with time series analysis
+  - 30-day forecast of process instance load
+  - Growth rate detection and trend confidence
+  - Peak hour and busiest day identification
+  - Essential for infrastructure and budget planning
+
+- **🔬 Variable Impact Analysis** - Root cause identification
+  - Analyzes which process variables correlate with failures
+  - Shows impact on failure rates and execution duration
+  - Provides actionable recommendations
+  - Helps optimize business logic and validation rules
+
+#### Intelligent Analytics
+- **Smart Health Score** - AI-powered composite health score (0-100) across 6 dimensions
+- **Anomaly Detection** - Dual-logic detection (statistical Z-score + absolute thresholds)
+- **Incident Pattern Recognition** - ML clustering of similar errors
+- **Process Bottleneck Identification** - Impact analysis (duration × frequency)
+- **Job Failure Prediction** - Pattern-based failure risk assessment
+- **Node Performance Rankings** - Automated node comparison and scoring
+- **Process Performance Leaderboard** - Grade-based rankings (A+ to F)
+- **SLA Breach Prediction** - Proactive task escalation alerts
+
+**Business Value:**
+- ✅ Prevent issues before they impact users
+- ✅ Reduce MTTR with intelligent root cause analysis  
+- ✅ Optimize capacity and reduce infrastructure costs
+- ✅ Improve SLA compliance with predictive alerts
+- ✅ Make data-driven process optimization decisions
 
 ### Comprehensive Metrics
 - **Process Instances** - Active instances, user tasks, and external tasks
@@ -164,8 +225,15 @@ JMX_NODE_2_URL=http://PUT_YOUR_CAMUNDA_BPM_2_NODE_JVM_METRICS_HOST_HERE/metrics
 # JVM Metrics Source: 'jmx' or 'micrometer'(from e.g. Quarkus based installation)
 JVM_METRICS_SOURCE=jmx
 
-# Stuck Instance Detection (in days)
 STUCK_INSTANCE_DAYS=7
+
+# AI/ML Configuration
+AI_LOOKBACK_DAYS=30         # Analysis window for all AI features (default: 30)
+AI_MAX_INSTANCES=50000      # Max instances to query (default: 50000)
+AI_MAX_INCIDENTS=1000       # Max incidents to query (default: 1000)
+AI_MIN_DATA=10              # Min data points for analysis (default: 10)
+AI_UI_RESULTS_LIMIT=20      # Max results to display (default: 20)
+SLA_THRESHOLD_HOURS=24      # SLA threshold for predictions (default: 24)
 
 # Application Settings
 PORT=5000
@@ -216,6 +284,53 @@ Edit ConfigMap and Secrets in `kubernetes-deployment.yaml` for your environment.
 | `/health/ready` | Readiness probe |
 | `/health/live` | Liveness probe |
 
+---
+
+## JMX Exporter
+
+In case your Camunda 7 based system does not share JVM metrics - one of simple solutions is to add JMX exporter (https://github.com/prometheus/jmx_exporter/releases)
+add it in related folder together with a small config file (e.g. prometheus-jmx.yml):
+```bash
+---
+startDelaySeconds: 0
+ssl: false
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+# --- JVM Metrics ---
+- pattern: "java.lang<type=OperatingSystem><>(\\w+)"
+  name: "jvm_os_$1"
+- pattern: "java.lang<type=Memory><>(\\w+)"
+  name: "jvm_memory_$1"
+- pattern: "java.lang<type=Threading><>(\\w+)"
+  name: "jvm_threading_$1"
+- pattern: "java.lang<type=GarbageCollector, name=(.+)><>(\\w+)"
+  name: "jvm_gc_$2"
+  labels:
+    collector: "$1"
+
+```
+Start your Camunda 7 based system with adding arguments in JAVA_OPTS or CATALINA_OPTS as:
+```bash
+-javaagent:/camunda/javaagent/jmx_prometheus_javaagent.jar=9404:/camunda/javaagent/prometheus-jmx.yml
+
+```
+Now you can get JVM metrics via <CAMUNDA_HOST>:9404/metrics endpoint.
+
+### Easier setup
+
+Some well known Camunda 7 fork systems (e.g. Operaton, CIB Seven, eximeeBPMS) may already include JMX Exporter, so there is a need to activate it via setting related environment variable:
+```bash
+JMX_PROMETHEUS=true
+```
+and just add configuration file in /javaagent/ folder inside project folder, there is no need to extend JAVA_OPTS or CATALINA_OPTS. The path to config file has to look like one of:
+ ```bash
+/camunda/javaagent/prometheus-jmx.yml
+/eximeebpms/javaagent/prometheus-jmx.yml
+/operaton/javaagent/prometheus-jmx.yml
+```
+---
+
 ## Configuration
 
 All configuration via environment variables. See `.env.example` for full reference.
@@ -230,22 +345,7 @@ All configuration via environment variables. See `.env.example` for full referen
 
 ## Architecture
 
-```
-├── app.py              # Flask application factory
-├── config.py           # Configuration management
-├── wsgi.py             # Production WSGI entry point
-├── routes/             # HTTP endpoints (blueprints)
-│   ├── main.py         # Dashboard
-│   ├── api.py          # API endpoints
-│   └── metrics.py      # Prometheus & health
-├── services/           # Business logic
-│   ├── camunda_service.py
-│   └── database_service.py
-└── helpers/            # Utilities
-    ├── db_helper.py
-    ├── health_checks.py
-    └── error_handler.py
-```
+**📚 Detailed architecture:** [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
 
 ## Production Deployment
 
@@ -328,6 +428,52 @@ Responsive design ensures full functionality on desktop, tablet, and mobile devi
 
 ### Lazy Loading
 Individual metric cards load on-demand for faster initial page load.
+
+## 📋 API Documentation
+
+### Interactive API Explorer
+
+Access the interactive Swagger UI documentation at:
+```
+http://localhost:5000/api/docs
+```
+
+### Key API Endpoints
+
+#### Health & Monitoring
+- `GET /api/health` - Comprehensive cluster health status
+- `GET /health` - Basic health check
+- `GET /health/live` - Kubernetes liveness probe
+- `GET /health/ready` - Kubernetes readiness probe
+
+#### Metrics
+- `GET /api/metrics/stuck-instances` - Stuck process instances
+- `GET /api/metrics/pending-messages` - Pending message subscriptions  
+- `GET /api/metrics/pending-signals` - Pending signal subscriptions
+- `GET /api/metrics/job-throughput` - Job execution throughput
+- `GET /api/metrics/database` - Database performance metrics
+
+#### AI/ML Analytics
+- `GET /api/ai/health-score` - AI-powered cluster health score (0-100)
+- `GET /api/ai/anomalies` - Process execution anomaly detection
+- `GET /api/ai/incident-patterns` - Incident pattern analysis
+- `GET /api/ai/bottlenecks` - Process bottleneck identification
+- `GET /api/ai/job-predictions` - Job failure predictions
+- `GET /api/ai/node-performance` - Node performance rankings
+- `GET /api/ai/process-leaderboard` - Process performance leaderboard
+- `GET /api/ai/sla-predictions` - SLA breach predictions
+- `GET /api/ai/insights` - Comprehensive AI insights (all-in-one)
+- `GET /api/ai/stuck-activities-smart` - Smart stuck activity detection (P95-based)
+- `GET /api/ai/predict-duration/{process_def_key}` - ML-powered duration prediction
+- `GET /api/ai/capacity-forecast` - Future capacity forecasting
+- `GET /api/ai/variable-impact/{process_def_key}` - Variable impact analysis
+
+#### Prometheus Export
+- `GET /metrics` - All metrics in Prometheus format (includes AI metrics)
+
+**Note:** All AI endpoints use only existing Camunda database tables (ACT_HI_* and ACT_RU_*). No additional infrastructure required.
+
+---
 
 ## 🔒 Security Considerations
 

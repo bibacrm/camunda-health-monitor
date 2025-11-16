@@ -637,11 +637,15 @@ def _extract_jvm_health_metrics(jmx_data):
         return {'status': 'ERROR', 'error': jmx_data['error']}
 
     try:
-        # Memory metrics
-        heap_used = jmx_data.get('jvm_memory_bytes_used', {}).get('area_heap', 0)
-        heap_max = jmx_data.get('jvm_memory_bytes_max', {}).get('area_heap', 1)
-        heap_committed = jmx_data.get('jvm_memory_bytes_committed', {}).get('area_heap', 0)
-        nonheap_used = jmx_data.get('jvm_memory_bytes_used', {}).get('area_nonheap', 0)
+        # Memory metrics - support both old (0.20.0) and new (1.0.1+) naming
+        memory_used = jmx_data.get('jvm_memory_used_bytes', jmx_data.get('jvm_memory_bytes_used', {}))
+        memory_max = jmx_data.get('jvm_memory_max_bytes', jmx_data.get('jvm_memory_bytes_max', {}))
+        memory_committed = jmx_data.get('jvm_memory_committed_bytes', jmx_data.get('jvm_memory_bytes_committed', {}))
+
+        heap_used = memory_used.get('area_heap', 0)
+        heap_max = memory_max.get('area_heap', 1)
+        heap_committed = memory_committed.get('area_heap', 0)
+        nonheap_used = memory_used.get('area_nonheap', 0)
 
         # GC metrics
         gc_copy_count = jmx_data.get('jvm_gc_collection_seconds_count', {}).get('gc_Copy', 0)
