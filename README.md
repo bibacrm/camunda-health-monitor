@@ -273,17 +273,6 @@ kubectl apply -f kubernetes-deployment.yaml
 
 Edit ConfigMap and Secrets in `kubernetes-deployment.yaml` for your environment.
 
-## API Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `/` | Dashboard UI |
-| `/api/health` | Cluster health JSON |
-| `/api/docs` | Swagger documentation |
-| `/metrics` | Prometheus metrics |
-| `/health/ready` | Readiness probe |
-| `/health/live` | Liveness probe |
-
 ---
 
 ## JMX Exporter
