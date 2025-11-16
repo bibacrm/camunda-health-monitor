@@ -28,6 +28,9 @@ Watch the feature demonstration on YouTube(enterprise version, but it is 80% the
 ![Dashboard Overview](docs/images/dashboard-full.png)
 *Real-time cluster monitoring with comprehensive metrics*
 
+![AI/ML Analytics Overview](docs/images/camunda_ai_ml_analysis.jpeg)
+*AI/ML Analysis tab*
+
 ### Light Theme
 ![Light Theme](docs/images/dashboard-light.png)
 *Clean, professional light mode interface*
