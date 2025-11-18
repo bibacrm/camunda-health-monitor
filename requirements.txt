@@ -10,3 +10,4 @@ numpy==1.26.2
 pandas
 scikit-learn
 scipy
+python-docx

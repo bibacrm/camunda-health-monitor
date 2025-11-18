@@ -18,13 +18,24 @@ def index():
         'autoRefreshInterval': current_app.config.get('UI_AUTO_REFRESH_INTERVAL_MS', 30000),
         'archiveDaysThreshold': current_app.config.get('DB_ARCHIVE_THRESHOLD_DAYS', 90),
         'aiDisplayLimits': {
-            'anomalies': current_app.config.get('AI_UI_RESULTS_LIMIT', 20),
-            'incidents': current_app.config.get('AI_UI_RESULTS_LIMIT', 20),
-            'bottlenecks': current_app.config.get('AI_UI_RESULTS_LIMIT', 20),
-            'jobPredictions': current_app.config.get('AI_UI_RESULTS_LIMIT', 20),
-            'leaderboard': current_app.config.get('AI_UI_RESULTS_LIMIT', 20)
+            'rows_limit': current_app.config.get('AI_UI_RESULTS_LIMIT', 20),
         }
     }
 
-    return render_template('index.html', data=data, stuck_days=stuck_days, ui_config=ui_config)
+    return render_template('dashboard.html', data=data, stuck_days=stuck_days, ui_config=ui_config)
 
+
+@main_bp.route('/ai-analysis')
+def ai_analysis():
+    """AI Analysis page"""
+    # UI Configuration for AI page
+    ui_config = {
+        'autoRefreshInterval': current_app.config.get('UI_AUTO_REFRESH_INTERVAL_MS', 30000),
+        'aiDisplayLimits': {
+            'rows_limit': current_app.config.get('AI_UI_RESULTS_LIMIT', 20),
+        },
+        'lookbackDays': current_app.config.get('AI_LOOKBACK_DAYS', 30),
+        'capacityTrainingDays': current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90),
+    }
+
+    return render_template('ai_analytics.html', ui_config=ui_config)
