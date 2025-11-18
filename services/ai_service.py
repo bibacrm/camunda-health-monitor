@@ -111,6 +111,102 @@ class AIAnalytics:
         }
         return weights.get(key, 1.0)
 
+    def _categorize_incident_root_cause(self, incident_type: str, error_message: str) -> str:
+        """Categorize incident root cause based on type and message"""
+        incident_type_lower = incident_type.lower() if incident_type else ''
+        error_msg_lower = error_message.lower() if error_message else ''
+
+        # Database/Connection issues
+        if any(keyword in error_msg_lower for keyword in ['connection', 'timeout', 'database', 'sql', 'deadlock', 'jdbc']):
+            return 'Database'
+
+        # Network/External Service issues
+        if any(keyword in error_msg_lower for keyword in ['network', 'unreachable', 'refused', 'http', 'rest', 'api', 'socket']):
+            return 'External Service'
+
+        # Business Logic/Validation
+        if any(keyword in error_msg_lower for keyword in ['validation', 'invalid', 'null', 'constraint', 'business', 'required']):
+            return 'Business Logic'
+
+        # Configuration issues
+        if any(keyword in error_msg_lower for keyword in ['config', 'property', 'missing', 'not found', 'undefined']):
+            return 'Configuration'
+
+        # Resource/Capacity issues
+        if any(keyword in error_msg_lower for keyword in ['memory', 'heap', 'resource', 'capacity', 'thread', 'pool']):
+            return 'Resource'
+
+        # Authorization/Security
+        if any(keyword in error_msg_lower for keyword in ['auth', 'permission', 'forbidden', 'unauthorized', 'security']):
+            return 'Authorization'
+
+        # Timeout issues
+        if any(keyword in incident_type_lower for keyword in ['timeout']) or 'timeout' in error_msg_lower:
+            return 'Timeout'
+
+        # Job/Async failures
+        if 'job' in incident_type_lower or 'async' in error_msg_lower:
+            return 'Job Execution'
+
+        # Default categorization
+        if incident_type_lower:
+            return incident_type.split('_')[0].title()
+
+        return 'Other'
+
+    def _get_anomaly_recommendation(self, severity: str, anomaly_types: list,
+                                     deviation_pct: float, z_score: float,
+                                     mean_seconds: float, stability: str, category: str) -> str:
+        """Generate actionable recommendation based on anomaly characteristics"""
+        if severity == 'critical':
+            if 'extreme_duration' in anomaly_types:
+                return "Immediate action required: Check for stuck processes, database locks, or external service timeouts"
+            return "Critical performance degradation detected. Review recent deployments and infrastructure changes"
+
+        if severity == 'high':
+            if mean_seconds > 7200:  # > 2 hours
+                return "Consider implementing timeout controls and async processing for long-running tasks"
+            if abs(deviation_pct) > 100:
+                return "Performance doubled from baseline. Investigate recent code changes or data volume increases"
+            return "Significant performance degradation. Review bottleneck analysis for optimization targets"
+
+        if severity == 'medium':
+            if stability == 'variable':
+                return "High variability detected. Analyze input data patterns and implement consistent resource allocation"
+            if 'slow_average' in anomaly_types:
+                return "Average duration increasing. Monitor resource utilization and consider scaling"
+            return "Performance deviation detected. Review activity execution times and database query performance"
+
+        # Low severity
+        if abs(z_score) > 1.5:
+            return "Monitor trend. If deviation persists, investigate potential infrastructure changes"
+        return "Minor variation within acceptable range. Continue monitoring"
+
+    def _generate_anomaly_reason(self, anomaly_types: list, deviation_pct: float,
+                                  z_score: float, mean_seconds: float, recent_seconds: float) -> str:
+        """Generate human-readable reason for anomaly detection"""
+        reasons = []
+
+        if 'statistical_deviation' in anomaly_types:
+            direction = "slower" if deviation_pct > 0 else "faster"
+            reasons.append(f"Running {abs(deviation_pct):.0f}% {direction} than historical baseline (z-score: {z_score:.1f})")
+
+        if 'extreme_duration' in anomaly_types:
+            if mean_seconds > 86400:  # > 1 day
+                reasons.append(f"Extremely long duration: {mean_seconds/3600:.1f} hours average")
+            elif mean_seconds > 7200:  # > 2 hours
+                reasons.append(f"Very long duration: {mean_seconds/60:.0f} minutes average")
+            else:
+                reasons.append(f"Long duration: {mean_seconds:.0f} seconds average")
+
+        if 'slow_average' in anomaly_types:
+            reasons.append(f"Average execution time ({recent_seconds:.0f}s) exceeds performance threshold")
+
+        if not reasons:
+            reasons.append(f"Atypical execution pattern detected")
+
+        return " | ".join(reasons)
+
     def _get_business_critical_process_keys(self, lookback_days=None):
         """
         Get list of business-critical process keys (excluding ultra_fast)
@@ -494,8 +590,11 @@ class AIAnalytics:
             # Get historical process execution data
             query = f"""
                 SELECT 
+                    id_ as instance_id,
                     proc_def_key_,
+                    business_key_,
                     EXTRACT(EPOCH FROM (end_time_ - start_time_)) * 1000 as duration_ms,
+                    start_time_,
                     end_time_
                 FROM act_hi_procinst
                 WHERE end_time_ IS NOT NULL
@@ -522,8 +621,17 @@ class AIAnalytics:
 
             # Group by process definition
             process_groups = defaultdict(list)
+            process_instances = defaultdict(list)  # Store full instance data
             for row in results:
-                process_groups[row['proc_def_key_']].append(float(row['duration_ms']))
+                duration = float(row['duration_ms'])
+                process_groups[row['proc_def_key_']].append(duration)
+                process_instances[row['proc_def_key_']].append({
+                    'instance_id': row['instance_id'],
+                    'business_key': row.get('business_key_') or 'N/A',
+                    'duration_ms': duration,
+                    'start_time': row['start_time_'],
+                    'end_time': row['end_time_']
+                })
 
             anomalies = []
             total_analyzed = 0
@@ -601,24 +709,51 @@ class AIAnalytics:
                     cv = category_info.get('cv')
                     stability = category_info.get('stability', 'unknown')
 
+                    # Generate contextual recommendation
+                    recommendation = self._get_anomaly_recommendation(
+                        severity, anomaly_types, deviation_pct, z_score,
+                        mean_seconds, stability, category
+                    )
+
+                    # Generate reason text
+                    reason = self._generate_anomaly_reason(
+                        anomaly_types, deviation_pct, z_score, mean_seconds, recent_mean / 1000
+                    )
+
+                    # Get sample instances - prioritize slowest ones
+                    instances = process_instances.get(proc_key, [])
+                    # Sort by duration descending and take top 5
+                    slowest_instances = sorted(instances, key=lambda x: x['duration_ms'], reverse=True)[:5]
+                    sample_instances = [{
+                        'instance_id': inst['instance_id'],
+                        'business_key': inst['business_key'],
+                        'duration_ms': round(inst['duration_ms'], 2),
+                        'start_time': inst['start_time'].isoformat() if inst['start_time'] else None,
+                        'end_time': inst['end_time'].isoformat() if inst['end_time'] else None,
+                        'is_slow': bool(inst['duration_ms'] > p95_ms)  # Convert numpy bool to Python bool
+                    } for inst in slowest_instances]
+
                     anomalies.append({
                         'process_key': proc_key,
                         'category': category,
                         'category_label': category_label,
-                        'baseline_avg_ms': round(float(mean_duration), 2),
-                        'recent_avg_ms': round(float(recent_mean), 2),
+                        'current_avg_ms': round(float(recent_mean), 2),
+                        'expected_avg_ms': round(float(mean_duration), 2),
                         'max_duration_ms': round(float(max_duration), 2),
-                        'deviation_pct': round(deviation_pct, 1),
+                        'deviation_pct': round(float(deviation_pct), 1),
                         'z_score': round(float(z_score), 2),
                         'severity': severity,
                         'anomaly_types': anomaly_types,
-                        'instances_analyzed': len(durations),
+                        'instances_analyzed': int(len(durations)),
                         'median_ms': round(float(median_ms), 2),
                         'p95_ms': round(float(p95_ms), 2),
                         'p95_ratio': round(float(p95_ratio), 2),
-                        'variability_score': variability_score,
-                        'cv': cv,
-                        'stability': stability
+                        'variability_score': float(variability_score) if variability_score else None,
+                        'cv': float(cv) if cv else None,
+                        'stability': stability,
+                        'recommendation': recommendation,
+                        'reason': reason,
+                        'sample_instances': sample_instances
                     })
 
             # Sort by severity (critical > high > medium > low), then by Z-score
@@ -867,12 +1002,20 @@ class AIAnalytics:
 
             patterns.sort(key=lambda x: x['occurrence_count'], reverse=True)
 
+            # Categorize root causes
+            root_cause_categories = defaultdict(int)
+            for pattern in patterns:
+                root_cause = self._categorize_incident_root_cause(pattern['incident_type'], pattern['error_message'])
+                pattern['root_cause'] = root_cause
+                root_cause_categories[root_cause] += pattern['occurrence_count']
+
             return {
                 'patterns': patterns[:max_results],
                 'total_incidents': len(results),
                 'unique_patterns': len(patterns),
                 'total_open': sum(p['open_count'] for p in patterns),
                 'total_resolved': sum(p['resolved_count'] for p in patterns),
+                'root_cause_categories': dict(root_cause_categories),
                 'analysis_window_days': lookback_days,
                 'message': f'Found {len(patterns)} unique incident patterns from {len(results)} incidents',
                 'data_source': data_source
@@ -907,23 +1050,32 @@ class AIAnalytics:
             max_results = self._get_config('AI_UI_RESULTS_LIMIT', 20)
 
             query = f"""
+                WITH version_data AS (
+                    SELECT 
+                        pi.proc_def_key_,
+                        SUBSTRING(pi.proc_def_id_ FROM ':([0-9]+):') as version,
+                        EXTRACT(EPOCH FROM (pi.end_time_ - pi.start_time_)) as duration_s,
+                        pi.start_time_
+                    FROM act_hi_procinst pi
+                    WHERE pi.start_time_ > NOW() - INTERVAL '{lookback_days} days'
+                      AND pi.end_time_ IS NOT NULL
+                      AND pi.end_time_ > pi.start_time_
+                )
                 SELECT 
-                    pi.proc_def_key_,
-                    SUBSTRING(pi.proc_def_id_ FROM ':([0-9]+):') as version,
+                    proc_def_key_,
+                    version,
                     COUNT(*) as instance_count,
-                    AVG(EXTRACT(EPOCH FROM (pi.end_time_ - pi.start_time_))) as avg_duration_s,
-                    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (pi.end_time_ - pi.start_time_))) as p50_duration_s,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (pi.end_time_ - pi.start_time_))) as p95_duration_s,
-                    STDDEV(EXTRACT(EPOCH FROM (pi.end_time_ - pi.start_time_))) as std_duration_s,
-                    MIN(pi.start_time_) as first_used,
-                    MAX(pi.start_time_) as last_used
-                FROM act_hi_procinst pi
-                WHERE pi.start_time_ > NOW() - INTERVAL '{lookback_days} days'
-                  AND pi.end_time_ IS NOT NULL
-                  AND pi.end_time_ > pi.start_time_
-                GROUP BY pi.proc_def_key_, version
+                    AVG(duration_s) as avg_duration_s,
+                    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY duration_s) as p50_duration_s,
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_s) as p95_duration_s,
+                    STDDEV(duration_s) as std_duration_s,
+                    MIN(start_time_) as first_used,
+                    MAX(start_time_) as last_used
+                FROM version_data
+                WHERE version IS NOT NULL
+                GROUP BY proc_def_key_, version
                 HAVING COUNT(*) >= {min_instances}
-                ORDER BY pi.proc_def_key_, CAST(version AS INTEGER) DESC
+                ORDER BY proc_def_key_, CAST(version AS INTEGER) DESC
             """
 
             results = safe_execute(
@@ -1862,18 +2014,32 @@ class AIAnalytics:
 
                     predictions.sort(key=lambda x: x['failure_rate_pct'], reverse=True)
 
+                    total_failures = sum(p['failed_count'] for p in predictions)
+
+                    # If all jobs are healthy (no failures), show top job types by volume
+                    if total_failures == 0:
+                        predictions.sort(key=lambda x: x['total_executions'], reverse=True)
+                        message = f'All {len(fallback_results)} activity types healthy - no failures detected'
+                    else:
+                        message = f'Analyzed {len(fallback_results)} activity types from process execution (job logs unavailable)'
+
                     return {
                         'predictions': predictions[:max_results],
                         'total_jobs_analyzed': len(fallback_results),
                         'analysis_window_days': lookback_days,
                         'total_executions': sum(r['total'] for r in fallback_results),
-                        'message': f'Analyzed {len(fallback_results)} activity types from process execution (job logs unavailable)',
-                        'data_source': 'activity_based'
+                        'total_failures': total_failures,
+                        'message': message,
+                        'data_source': 'activity_based',
+                        'all_healthy': total_failures == 0
                     }
 
                 return {
                     'predictions': [],
-                    'total_analyzed': 0,
+                    'total_jobs_analyzed': 0,
+                    'total_failures': 0,
+                    'total_executions': 0,
+                    'analysis_window_days': lookback_days,
                     'message': f'No job log data available. Your Camunda configuration may not log job history, or processes may not use async jobs. This is normal for sync-only processes.',
                     'data_source': 'none'
                 }
@@ -1908,11 +2074,20 @@ class AIAnalytics:
 
             predictions.sort(key=lambda x: x['failure_rate_pct'], reverse=True)
 
+            # Calculate failure type breakdown
+            failure_types = defaultdict(int)
+            total_failures = sum(p['failed_count'] for p in predictions)
+            for pred in predictions:
+                if pred['failed_count'] > 0:
+                    failure_types[pred['job_type']] += pred['failed_count']
+
             return {
                 'predictions': predictions[:max_results],
                 'total_jobs_analyzed': len(job_groups),
                 'analysis_window_days': lookback_days,
                 'total_executions': len(results),
+                'total_failures': total_failures,
+                'failure_breakdown': dict(sorted(failure_types.items(), key=lambda x: x[1], reverse=True)[:10]),
                 'message': f'Analyzed {len(job_groups)} job types from {len(results)} executions',
                 'data_source': 'job_log'
             }
@@ -1921,8 +2096,12 @@ class AIAnalytics:
             logger.error(f"Error predicting job failures: {e}")
             return {
                 'predictions': [],
-                'total_analyzed': 0,
+                'total_jobs_analyzed': 0,
+                'total_failures': 0,
+                'total_executions': 0,
+                'analysis_window_days': lookback_days if 'lookback_days' in locals() else 30,
                 'error': str(e),
+                'message': f'Error analyzing job failures: {str(e)}',
                 'data_source': 'error'
             }
 

@@ -82,7 +82,9 @@
                 </div>
 
                 <!-- Anomalies Detected -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-lg">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-lg cursor-pointer hover:shadow-xl transition-shadow"
+                     @click="$refs.anomalyModal.classList.toggle('hidden'); $nextTick(() => lucide.createIcons())"
+                     :class="(aiData.anomalies.anomalies?.length || 0) > 0 ? 'border-l-4 border-l-yellow-500' : ''">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Anomalies</span>
                         <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-600 dark:text-yellow-400"></i>
@@ -90,10 +92,21 @@
                     <div class="text-4xl font-bold text-yellow-600 dark:text-yellow-400 mb-2"
                          x-text="aiData.anomalies.anomalies?.length || 0"></div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
-                        Processes behaving abnormally
+                        <template x-if="(aiData.anomalies.anomalies?.length || 0) > 0">
+                            <span>Statistical outliers detected</span>
+                        </template>
+                        <template x-if="(aiData.anomalies.anomalies?.length || 0) === 0">
+                            <span>All processes normal</span>
+                        </template>
                     </p>
                     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1"
                        x-text="`Analyzed ${aiData.anomalies.total_analyzed || 0} processes`"></p>
+                    <template x-if="(aiData.anomalies.anomalies?.length || 0) > 0">
+                        <div class="mt-3 text-xs text-yellow-600 dark:text-yellow-400 font-medium flex items-center">
+                            <span>Click to view details</span>
+                            <i data-lucide="chevron-right" class="h-3 w-3 ml-1"></i>
+                        </div>
+                    </template>
                 </div>
 
                 <!-- SLA Risks -->
@@ -219,8 +232,8 @@
                                                   x-text="anomaly.severity"></span>
                                         </div>
                                         <p class="text-xs text-gray-600 dark:text-gray-400">
-                                            Baseline: <span x-text="formatDuration(anomaly.baseline_avg_ms)"></span> →
-                                            Recent: <span x-text="formatDuration(anomaly.recent_avg_ms)"></span>
+                                            Expected: <span x-text="formatDuration(anomaly.expected_avg_ms)"></span> →
+                                            Current: <span x-text="formatDuration(anomaly.current_avg_ms)"></span>
                                         </p>
                                         <template x-if="anomaly.max_duration_ms && anomaly.max_duration_ms > 3600000">
                                             <p class="text-xs text-red-600 dark:text-red-400 mt-1">
@@ -289,32 +302,82 @@
 
                     <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
                         <template x-if="aiData.incidents.patterns?.length > 0">
-                            <template x-for="(pattern,index) in aiData.incidents.patterns.slice(0, config.aiDisplayLimits.rows_limit)" :key="pattern.incident_type + index">
-                                <div class="p-3 bg-orange-50 dark:bg-orange-900/20 rounded border-l-2 border-l-orange-500">
-                                    <div class="flex items-start justify-between mb-1">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="pattern.incident_type"></p>
-                                        <span class="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full font-semibold"
+                            <div>
+                                <!-- Root Cause Categories Summary (compact) -->
+                                <template x-if="aiData.incidents.root_cause_categories && Object.keys(aiData.incidents.root_cause_categories).length > 0">
+                                    <div class="mb-3 p-3 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                                        <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Root Cause Breakdown</p>
+                                        <div class="flex flex-wrap gap-2">
+                                            <template x-for="[category, count] in Object.entries(aiData.incidents.root_cause_categories).sort((a,b) => b[1] - a[1]).slice(0, 5)" :key="category">
+                                                <span class="inline-flex items-center text-xs px-2 py-1 bg-white dark:bg-gray-800 rounded-full border border-orange-300 dark:border-orange-700">
+                                                    <span class="font-medium text-gray-900 dark:text-gray-100" x-text="category"></span>
+                                                    <span class="ml-1 text-orange-600 dark:text-orange-400 font-bold" x-text="count"></span>
+                                                </span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template x-for="(pattern,index) in aiData.incidents.patterns.slice(0, config.aiDisplayLimits.rows_limit)" :key="pattern.incident_type + index">
+                                <div class="p-3 bg-orange-50 dark:bg-orange-900/20 rounded border-l-2 border-l-orange-500 cursor-pointer hover:shadow-md transition-shadow"
+                                     @click="selectedIncident = pattern; $refs.incidentModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
+                                    <div class="flex items-start justify-between mb-2">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="pattern.incident_type"></p>
+                                                <template x-if="pattern.root_cause">
+                                                    <span class="text-xs px-2 py-0.5 bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-200 rounded"
+                                                          x-text="pattern.root_cause"></span>
+                                                </template>
+                                            </div>
+                                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1 line-clamp-2"
+                                               :title="pattern.error_message"
+                                               x-text="pattern.error_message"></p>
+                                        </div>
+                                        <span class="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full font-semibold ml-2"
                                               x-text="pattern.occurrence_count + 'x'"></span>
                                     </div>
-                                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-2 truncate"
-                                       :title="pattern.error_message"
-                                       x-text="pattern.error_message"></p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-500">
+
+                                    <!-- Status and Metrics Row -->
+                                    <div class="grid grid-cols-3 gap-2 mb-2 text-xs">
+                                        <div class="text-center p-1 bg-white dark:bg-gray-700/50 rounded">
+                                            <div class="text-gray-500 dark:text-gray-400">Open</div>
+                                            <div class="font-semibold text-red-600 dark:text-red-400" x-text="pattern.open_count || 0"></div>
+                                        </div>
+                                        <div class="text-center p-1 bg-white dark:bg-gray-700/50 rounded">
+                                            <div class="text-gray-500 dark:text-gray-400">Resolved</div>
+                                            <div class="font-semibold text-green-600 dark:text-green-400" x-text="pattern.resolved_count || 0"></div>
+                                        </div>
+                                        <div class="text-center p-1 bg-white dark:bg-gray-700/50 rounded">
+                                            <div class="text-gray-500 dark:text-gray-400">Avg Time</div>
+                                            <div class="font-semibold text-gray-900 dark:text-gray-100" x-text="(pattern.avg_duration_hours || 0).toFixed(1) + 'h'"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Affected Details -->
+                                    <div class="text-xs text-gray-500 dark:text-gray-500">
                                         <template x-if="pattern.source === 'runtime_jobs'">
                                             <span>
-                                                <span x-text="pattern.retries_exhausted"></span> with no retries left ·
-                                                <span x-text="pattern.affected_processes.length"></span> instance(s)
+                                                <span x-text="pattern.retries_exhausted || 0"></span> with no retries ·
+                                                <span x-text="pattern.affected_processes?.length || 0"></span> instance(s)
                                             </span>
                                         </template>
                                         <template x-if="pattern.source !== 'runtime_jobs'">
                                             <span>
-                                                <span x-text="pattern.frequency_per_day"></span> per day ·
-                                                <span x-text="pattern.affected_processes.length"></span> process(es) affected
+                                                <span x-text="(pattern.frequency_per_day || 0).toFixed(1)"></span>/day ·
+                                                <span x-text="pattern.affected_processes?.length || 0"></span> process(es)
+                                                <template x-if="pattern.affected_activities?.length > 0">
+                                                    · <span x-text="pattern.affected_activities.length"></span> activity/activities
+                                                </template>
+                                                <template x-if="pattern.sample_instances && pattern.sample_instances.length > 0">
+                                                    <span class="ml-2 text-blue-600 dark:text-blue-400 font-medium">· Click for details →</span>
+                                                </template>
                                             </span>
                                         </template>
-                                    </p>
+                                    </div>
                                 </div>
                             </template>
+                            </div>
                         </template>
                         <template x-if="!aiData.incidents.patterns?.length">
                             <div class="text-center py-8">
@@ -390,12 +453,42 @@
                     </div>
                     <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
                         <template x-if="aiData.job_failures.predictions?.length > 0">
+                            <div>
+                                <!-- All Healthy Banner (when total_failures is 0) -->
+                                <template x-if="aiData.job_failures.all_healthy || aiData.job_failures.total_failures === 0">
+                                <div class="mb-3 p-2 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded border border-green-200 dark:border-green-800">
+                                    <div class="flex items-center text-xs">
+                                        <i data-lucide="check-circle" class="inline h-4 w-4 mr-2 text-green-600 dark:text-green-400"></i>
+                                        <span class="font-semibold text-green-700 dark:text-green-300">
+                                            All job types executing successfully!
+                                        </span>
+                                    </div>
+                                    <div class="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                        Showing top <span x-text="aiData.job_failures.predictions.length"></span> job types by volume
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Failure Summary Bar (compact) - Only show if failures exist -->
+                            <template x-if="aiData.job_failures.total_failures > 0">
+                                <div class="mb-3 p-2 bg-gradient-to-r from-purple-50 to-red-50 dark:from-purple-900/20 dark:to-red-900/20 rounded border border-purple-200 dark:border-purple-800">
+                                    <div class="flex items-center justify-between text-xs">
+                                        <span class="font-semibold text-gray-700 dark:text-gray-300">
+                                            <i data-lucide="alert-circle" class="inline h-3 w-3 mr-1"></i>
+                                            <span x-text="aiData.job_failures.total_failures"></span> total failures
+                                        </span>
+                                        <span class="text-gray-500 dark:text-gray-400"
+                                              x-text="`${((aiData.job_failures.total_failures / aiData.job_failures.total_executions * 100) || 0).toFixed(1)}% failure rate`"></span>
+                                    </div>
+                                </div>
+                            </template>
+
                             <template x-for="pred in aiData.job_failures.predictions.slice(0, config.aiDisplayLimits.rows_limit)" :key="pred.job_type">
                                 <div class="p-3 bg-purple-50 dark:bg-purple-900/20 rounded border-l-2"
                                      :class="{
-                                         'border-l-red-500': pred.risk_level === 'high',
-                                         'border-l-yellow-500': pred.risk_level === 'medium',
-                                         'border-l-green-500': pred.risk_level === 'low'
+                                         'border-l-red-500': pred.risk_level === 'high' && pred.failed_count > 0,
+                                         'border-l-yellow-500': pred.risk_level === 'medium' && pred.failed_count > 0,
+                                         'border-l-green-500': pred.risk_level === 'low' || pred.failed_count === 0
                                      }">
                                     <div class="flex items-start justify-between mb-1">
                                         <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1"
@@ -403,19 +496,31 @@
                                            x-text="pred.job_type"></p>
                                         <span class="text-sm font-bold ml-2"
                                               :class="{
-                                                  'text-red-600 dark:text-red-400': pred.risk_level === 'high',
-                                                  'text-yellow-600 dark:text-yellow-400': pred.risk_level === 'medium',
-                                                  'text-green-600 dark:text-green-400': pred.risk_level === 'low'
+                                                  'text-red-600 dark:text-red-400': pred.risk_level === 'high' && pred.failed_count > 0,
+                                                  'text-yellow-600 dark:text-yellow-400': pred.risk_level === 'medium' && pred.failed_count > 0,
+                                                  'text-green-600 dark:text-green-400': pred.risk_level === 'low' || pred.failed_count === 0
                                               }"
                                               x-text="pred.failure_rate_pct + '%'"></span>
                                     </div>
                                     <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                        <span x-text="pred.failed_count"></span> failed /
-                                        <span x-text="pred.total_executions"></span> total executions
+                                        <template x-if="pred.failed_count > 0">
+                                            <span>
+                                                <span x-text="pred.failed_count"></span> failed /
+                                                <span x-text="pred.total_executions"></span> total executions
+                                            </span>
+                                        </template>
+                                        <template x-if="pred.failed_count === 0">
+                                            <span>
+                                                <span x-text="pred.total_executions"></span> executions - all successful ✓
+                                            </span>
+                                        </template>
                                     </p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-500" x-text="pred.recommendation"></p>
+                                    <template x-if="pred.failed_count > 0">
+                                        <p class="text-xs text-gray-500 dark:text-gray-500" x-text="pred.recommendation"></p>
+                                    </template>
                                 </div>
                             </template>
+                            </div>
                         </template>
                         <template x-if="!aiData.job_failures.predictions?.length">
                             <div class="text-center py-8">
@@ -861,6 +966,357 @@
                 </div>
             </div>
 
+
+            <!-- Anomaly Details Modal -->
+            <div x-ref="anomalyModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+                 @click.self="$refs.anomalyModal.classList.add('hidden')">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[85vh] overflow-hidden">
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 z-10">
+                        <div class="flex items-center">
+                            <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2"></i>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Performance Anomalies Detected</h3>
+                        </div>
+                        <button @click="$refs.anomalyModal.classList.add('hidden')"
+                                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <i data-lucide="x" class="h-5 w-5"></i>
+                        </button>
+                    </div>
+                    <div class="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+                        <template x-if="aiData.anomalies.anomalies?.length > 0">
+                            <div class="space-y-6">
+                                <template x-for="(anomaly, idx) in aiData.anomalies.anomalies" :key="idx">
+                                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                        <!-- Header -->
+                                        <div class="p-4 border-l-4"
+                                             :class="{
+                                                 'bg-red-50 dark:bg-red-900/20 border-l-red-500': anomaly.severity === 'critical',
+                                                 'bg-orange-50 dark:bg-orange-900/20 border-l-orange-500': anomaly.severity === 'high',
+                                                 'bg-yellow-50 dark:bg-yellow-900/20 border-l-yellow-500': anomaly.severity === 'medium',
+                                                 'bg-blue-50 dark:bg-blue-900/20 border-l-blue-500': anomaly.severity === 'low'
+                                             }">
+                                            <div class="flex items-start justify-between mb-2">
+                                                <div class="flex-1">
+                                                    <div class="flex items-center gap-2 mb-2">
+                                                        <h4 class="text-base font-semibold text-gray-900 dark:text-gray-100"
+                                                            x-text="anomaly.process_key"></h4>
+                                                        <span class="text-xs px-2 py-1 rounded-full font-semibold uppercase"
+                                                              :class="{
+                                                                  'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400': anomaly.severity === 'critical',
+                                                                  'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400': anomaly.severity === 'high',
+                                                                  'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400': anomaly.severity === 'medium',
+                                                                  'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400': anomaly.severity === 'low'
+                                                              }"
+                                                              x-text="anomaly.severity"></span>
+                                                    </div>
+                                                    <p class="text-sm text-gray-600 dark:text-gray-400" x-text="anomaly.reason"></p>
+                                                </div>
+                                                <div class="ml-4 text-right">
+                                                    <span class="text-2xl font-bold"
+                                                          :class="{
+                                                              'text-red-600 dark:text-red-400': anomaly.severity === 'critical',
+                                                              'text-orange-600 dark:text-orange-400': anomaly.severity === 'high',
+                                                              'text-yellow-600 dark:text-yellow-400': anomaly.severity === 'medium',
+                                                              'text-blue-600 dark:text-blue-400': anomaly.severity === 'low'
+                                                          }"
+                                                          x-text="`Z: ${anomaly.z_score?.toFixed(1)}`"></span>
+                                                    <p class="text-xs text-gray-500">Z-score</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Metrics Grid -->
+                                        <div class="p-4 bg-white dark:bg-gray-800">
+                                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                                                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Current Avg</p>
+                                                    <p class="text-lg font-bold text-gray-900 dark:text-gray-100"
+                                                       x-text="formatDuration(anomaly.current_avg_ms)"></p>
+                                                </div>
+                                                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Expected Avg</p>
+                                                    <p class="text-lg font-bold text-gray-900 dark:text-gray-100"
+                                                       x-text="formatDuration(anomaly.expected_avg_ms)"></p>
+                                                </div>
+                                                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Deviation</p>
+                                                    <p class="text-lg font-bold"
+                                                       :class="Math.abs(anomaly.deviation_pct) > 50 ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'"
+                                                       x-text="(anomaly.deviation_pct > 0 ? '+' : '') + anomaly.deviation_pct?.toFixed(0) + '%'"></p>
+                                                </div>
+                                                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Max Duration</p>
+                                                    <p class="text-lg font-bold text-gray-900 dark:text-gray-100"
+                                                       x-text="formatDuration(anomaly.max_duration_ms)"></p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Additional Stats -->
+                                            <div class="grid grid-cols-3 gap-4 mb-4">
+                                                <div class="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                                                    <p class="text-xs text-gray-600 dark:text-gray-400">Instances</p>
+                                                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="anomaly.instances_analyzed"></p>
+                                                </div>
+                                                <div class="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                                                    <p class="text-xs text-gray-600 dark:text-gray-400">P95</p>
+                                                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="formatDuration(anomaly.p95_ms)"></p>
+                                                </div>
+                                                <div class="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                                                    <p class="text-xs text-gray-600 dark:text-gray-400">Stability</p>
+                                                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="anomaly.stability || 'N/A'"></p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Recommendation -->
+                                            <template x-if="anomaly.recommendation">
+                                                <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                                    <p class="text-sm text-blue-700 dark:text-blue-300">
+                                                        <i data-lucide="lightbulb" class="inline h-4 w-4 mr-1"></i>
+                                                        <strong>Recommendation:</strong> <span x-text="anomaly.recommendation"></span>
+                                                    </p>
+                                                </div>
+                                            </template>
+
+                                            <!-- Sample Instances -->
+                                            <template x-if="anomaly.sample_instances && anomaly.sample_instances.length > 0">
+                                                <div>
+                                                    <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                                        Slowest Instances (<span x-text="anomaly.sample_instances.length"></span>)
+                                                    </h5>
+                                                    <div class="space-y-3">
+                                                        <template x-for="(sample, sIdx) in anomaly.sample_instances" :key="sample.instance_id">
+                                                            <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                                                <div class="flex items-center justify-between mb-2">
+                                                                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                                                        Instance #<span x-text="sIdx + 1"></span>
+                                                                    </span>
+                                                                    <div class="flex items-center gap-2">
+                                                                        <span class="text-sm font-bold"
+                                                                              :class="sample.is_slow ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'"
+                                                                              x-text="formatDuration(sample.duration_ms)"></span>
+                                                                        <template x-if="sample.is_slow">
+                                                                            <span class="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full">
+                                                                                >P95
+                                                                            </span>
+                                                                        </template>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="space-y-2">
+                                                                    <div>
+                                                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Instance ID</p>
+                                                                        <div class="flex items-center gap-2">
+                                                                            <code class="text-xs font-mono text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 flex-1 break-all select-all"
+                                                                                  x-text="sample.instance_id"></code>
+                                                                            <button @click="navigator.clipboard.writeText(sample.instance_id)"
+                                                                                    class="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors flex-shrink-0"
+                                                                                    title="Copy to clipboard">
+                                                                                <i data-lucide="copy" class="h-4 w-4"></i>
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <template x-if="sample.business_key && sample.business_key !== 'N/A'">
+                                                                        <div>
+                                                                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Business Key</p>
+                                                                            <div class="flex items-center gap-2">
+                                                                                <code class="text-xs font-mono text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 flex-1 break-all select-all"
+                                                                                      x-text="sample.business_key"></code>
+                                                                                <button @click="navigator.clipboard.writeText(sample.business_key)"
+                                                                                        class="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors flex-shrink-0"
+                                                                                        title="Copy to clipboard">
+                                                                                    <i data-lucide="copy" class="h-4 w-4"></i>
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </template>
+                                                                    <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-1">
+                                                                        <template x-if="sample.start_time">
+                                                                            <span>Started: <span x-text="new Date(sample.start_time).toLocaleString()"></span></span>
+                                                                        </template>
+                                                                        <template x-if="sample.end_time">
+                                                                            <span>Ended: <span x-text="new Date(sample.end_time).toLocaleString()"></span></span>
+                                                                        </template>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="!aiData.anomalies.anomalies?.length">
+                            <div class="text-center py-8">
+                                <i data-lucide="check-circle" class="h-12 w-12 text-green-500 mx-auto mb-2"></i>
+                                <p class="text-gray-600 dark:text-gray-400">All processes are operating within normal parameters</p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Incident Details Modal -->
+            <div x-ref="incidentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+                 @click.self="$refs.incidentModal.classList.add('hidden')">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[85vh] overflow-hidden">
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 z-10">
+                        <div class="flex items-center flex-1">
+                            <i data-lucide="alert-circle" class="h-5 w-5 text-orange-600 dark:text-orange-400 mr-2"></i>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="selectedIncident?.incident_type || 'Incident Details'"></h3>
+                            <template x-if="selectedIncident?.root_cause">
+                                <span class="ml-3 text-xs px-2 py-1 bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-200 rounded"
+                                      x-text="selectedIncident.root_cause"></span>
+                            </template>
+                        </div>
+                        <button @click="$refs.incidentModal.classList.add('hidden')"
+                                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <i data-lucide="x" class="h-5 w-5"></i>
+                        </button>
+                    </div>
+                    <div class="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+                        <template x-if="selectedIncident">
+                            <div class="space-y-6">
+                                <!-- Error Message -->
+                                <div>
+                                    <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Error Message</h4>
+                                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                        <p class="text-sm text-gray-900 dark:text-gray-100 font-mono break-words" x-text="selectedIncident.error_message"></p>
+                                    </div>
+                                </div>
+
+                                <!-- Statistics Grid -->
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div class="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Occurrences</p>
+                                        <p class="text-2xl font-bold text-orange-600 dark:text-orange-400" x-text="selectedIncident.occurrence_count"></p>
+                                    </div>
+                                    <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-700">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Open</p>
+                                        <p class="text-2xl font-bold text-red-600 dark:text-red-400" x-text="selectedIncident.open_count || 0"></p>
+                                    </div>
+                                    <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Resolved</p>
+                                        <p class="text-2xl font-bold text-green-600 dark:text-green-400" x-text="selectedIncident.resolved_count || 0"></p>
+                                    </div>
+                                    <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Avg Resolution</p>
+                                        <p class="text-2xl font-bold text-blue-600 dark:text-blue-400" x-text="(selectedIncident.avg_duration_hours || 0).toFixed(1) + 'h'"></p>
+                                    </div>
+                                </div>
+
+                                <!-- Timeline Info -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">First Seen</h4>
+                                        <p class="text-sm text-gray-900 dark:text-gray-100">
+                                            <template x-if="selectedIncident.first_seen">
+                                                <span x-text="new Date(selectedIncident.first_seen).toLocaleString()"></span>
+                                            </template>
+                                            <template x-if="!selectedIncident.first_seen">
+                                                <span class="text-gray-400">Not available</span>
+                                            </template>
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Last Seen</h4>
+                                        <p class="text-sm text-gray-900 dark:text-gray-100">
+                                            <template x-if="selectedIncident.last_seen">
+                                                <span x-text="new Date(selectedIncident.last_seen).toLocaleString()"></span>
+                                            </template>
+                                            <template x-if="!selectedIncident.last_seen">
+                                                <span class="text-gray-400">Not available</span>
+                                            </template>
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <!-- Affected Processes & Activities -->
+                                <div>
+                                    <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Affected Scope</h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">Processes (<span x-text="selectedIncident.affected_processes?.length || 0"></span>)</p>
+                                            <div class="flex flex-wrap gap-1">
+                                                <template x-for="proc in selectedIncident.affected_processes" :key="proc">
+                                                    <span class="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded" x-text="proc"></span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <template x-if="selectedIncident.affected_activities?.length > 0">
+                                            <div>
+                                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">Activities (<span x-text="selectedIncident.affected_activities.length"></span>)</p>
+                                                <div class="flex flex-wrap gap-1">
+                                                    <template x-for="act in selectedIncident.affected_activities" :key="act">
+                                                        <span class="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded" x-text="act"></span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <!-- Sample Instances -->
+                                <template x-if="selectedIncident.sample_instances && selectedIncident.sample_instances.length > 0">
+                                    <div>
+                                        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                            Sample Instances (<span x-text="selectedIncident.sample_instances.length"></span>)
+                                        </h4>
+                                        <div class="space-y-3">
+                                            <template x-for="(sample, idx) in selectedIncident.sample_instances" :key="sample.instance_id">
+                                                <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                                    <div class="flex items-start justify-between mb-3">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">Instance #<span x-text="idx + 1"></span></span>
+                                                            <span class="px-2 py-0.5 rounded text-xs font-medium"
+                                                                  :class="sample.status === 'open' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'"
+                                                                  x-text="sample.status"></span>
+                                                        </div>
+                                                        <template x-if="sample.create_time">
+                                                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                                <span x-text="new Date(sample.create_time).toLocaleString()"></span>
+                                                            </p>
+                                                        </template>
+                                                    </div>
+                                                    <div class="space-y-3">
+                                                        <div>
+                                                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1.5">Instance ID</p>
+                                                            <div class="flex items-center gap-2">
+                                                                <code class="text-sm font-mono text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 flex-1 break-all select-all"
+                                                                      x-text="sample.instance_id"></code>
+                                                                <button @click="navigator.clipboard.writeText(sample.instance_id)"
+                                                                        class="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors flex-shrink-0"
+                                                                        title="Copy to clipboard">
+                                                                    <i data-lucide="copy" class="h-4 w-4"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <template x-if="sample.business_key && sample.business_key !== 'N/A'">
+                                                            <div>
+                                                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-1.5">Business Key</p>
+                                                                <div class="flex items-center gap-2">
+                                                                    <code class="text-sm font-mono text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 flex-1 break-all select-all"
+                                                                          x-text="sample.business_key"></code>
+                                                                    <button @click="navigator.clipboard.writeText(sample.business_key)"
+                                                                            class="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors flex-shrink-0"
+                                                                            title="Copy to clipboard">
+                                                                        <i data-lucide="copy" class="h-4 w-4"></i>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </template>
 
@@ -878,6 +1334,7 @@
             aiData: null,
             aiError: null,
             lastUpdate: new Date().toISOString(),
+            selectedIncident: null,
 
             // Advanced ML features states
             stuckActivitiesData: null,
@@ -1005,3 +1462,6 @@
     }
 </script>
 {% endblock %}
+
+
+

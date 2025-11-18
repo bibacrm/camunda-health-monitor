@@ -274,6 +274,15 @@ def api_ai_insights():
     def get_sla_predictions():
         return ('sla_predictions', ai.predict_sla_breaches(threshold_hours=threshold_hours))
 
+    def get_version_performance():
+        return ('version_performance', ai.analyze_version_performance(lookback_days=min(lookback_days * 2, 60)))
+
+    def get_load_patterns():
+        return ('load_patterns', ai.analyze_load_patterns(lookback_days=lookback_days))
+
+    def get_process_variability():
+        return ('process_variability', ai.detect_extreme_variability(lookback_days=lookback_days))
+
     # Execute all AI analysis in parallel
     insights = {}
     tasks = [
@@ -284,10 +293,13 @@ def api_ai_insights():
         get_job_failures,
         get_node_performance,
         get_process_leaderboard,
-        get_sla_predictions
+        get_sla_predictions,
+        get_version_performance,
+        get_load_patterns,
+        get_process_variability
     ]
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=11) as executor:
         future_to_task = {executor.submit(task): task for task in tasks}
 
         for future in as_completed(future_to_task):
