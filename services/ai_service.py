@@ -807,6 +807,123 @@ class AIAnalytics:
             }
 
     # =========================================================================
+    # ACTIVITY BOTTLENECK ANALYSIS
+    # =========================================================================
+
+    def analyze_activity_bottlenecks(self, lookback_days=None, limit=30):
+        """
+        Analyze slowest activities across business-critical processes
+        Returns top bottlenecks with execution metrics and sample instances
+        """
+        try:
+            if lookback_days is None:
+                lookback_days = self._get_config('AI_LOOKBACK_DAYS', 30)
+
+            # Get business-critical process keys for filtering
+            business_keys = self._get_business_critical_process_keys(lookback_days)
+
+            if not business_keys:
+                logger.warning("No business-critical processes found for activity bottleneck analysis")
+                return []
+
+            # Create filter for business-critical processes only
+            process_filter = "', '".join(business_keys)
+
+            query = f"""
+                SELECT 
+                    ai.proc_def_key_,
+                    ai.act_id_,
+                    ai.act_name_,
+                    ai.act_type_,
+                    COUNT(*) as execution_count,
+                    AVG(EXTRACT(EPOCH FROM (ai.end_time_ - ai.start_time_))) as avg_duration_s,
+                    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ai.end_time_ - ai.start_time_))) as p50_duration_s,
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ai.end_time_ - ai.start_time_))) as p95_duration_s,
+                    STDDEV(EXTRACT(EPOCH FROM (ai.end_time_ - ai.start_time_))) as stddev_duration_s,
+                    MAX(EXTRACT(EPOCH FROM (ai.end_time_ - ai.start_time_))) as max_duration_s,
+                    MIN(ai.proc_inst_id_) as sample_instance_id
+                FROM act_hi_actinst ai
+                WHERE ai.start_time_ > NOW() - INTERVAL '{lookback_days} days'
+                  AND ai.end_time_ IS NOT NULL
+                  AND ai.proc_def_key_ IN ('{process_filter}')
+                  AND ai.act_type_ IN ('serviceTask', 'sendTask', 'businessRuleTask', 'scriptTask', 'userTask')
+                GROUP BY ai.proc_def_key_, ai.act_id_, ai.act_name_, ai.act_type_
+                HAVING COUNT(*) >= 5
+                ORDER BY avg_duration_s DESC
+                LIMIT {limit}
+            """
+
+            results = safe_execute(
+                lambda: execute_query(query),
+                default_value=[],
+                context="Analyzing activity bottlenecks"
+            )
+
+            if not results:
+                return []
+
+            activities = []
+            for row in results:
+                avg_s = self._safe_float(row.get('avg_duration_s')) or 0
+                stddev_s = self._safe_float(row.get('stddev_duration_s')) or 0
+                p50_s = self._safe_float(row.get('p50_duration_s')) or 0
+                p95_s = self._safe_float(row.get('p95_duration_s')) or 0
+                max_s = self._safe_float(row.get('max_duration_s')) or 0
+                count = int(row.get('execution_count', 0))
+
+                cv = self._compute_cv(stddev_s, avg_s)
+                stability = self._classify_stability(cv)
+
+                # Calculate total time spent (hours) for optimization impact
+                total_hours = (avg_s * count) / 3600
+
+                # Calculate potential savings (10% improvement)
+                potential_savings_hours = total_hours * 0.1
+
+                # Get business key for sample instance
+                sample_instance_id = row.get('sample_instance_id')
+                business_key = None
+                if sample_instance_id:
+                    bkey_query = f"""
+                        SELECT business_key_
+                        FROM act_hi_procinst
+                        WHERE id_ = '{sample_instance_id}'
+                        LIMIT 1
+                    """
+                    bkey_result = safe_execute(
+                        lambda: execute_query(bkey_query),
+                        default_value=[],
+                        context="Fetching business key for sample"
+                    )
+                    if bkey_result and bkey_result[0].get('business_key_'):
+                        business_key = bkey_result[0]['business_key_']
+
+                activities.append({
+                    'process_key': row.get('proc_def_key_'),
+                    'activity_id': row.get('act_id_'),
+                    'activity_name': row.get('act_name_') or row.get('act_id_'),
+                    'activity_type': row.get('act_type_'),
+                    'execution_count': count,
+                    'avg_duration_s': avg_s,
+                    'median_duration_s': p50_s,
+                    'p95_duration_s': p95_s,
+                    'max_duration_s': max_s,
+                    'cv': cv,
+                    'stability': stability,
+                    'total_time_hours': round(total_hours, 2),
+                    'potential_savings_hours': round(potential_savings_hours, 2),
+                    'sample_instance_id': sample_instance_id,
+                    'sample_business_key': business_key
+                })
+
+            logger.info(f"Analyzed {len(activities)} activity bottlenecks from {len(business_keys)} business-critical processes")
+            return activities
+
+        except Exception as e:
+            logger.error(f"Error analyzing activity bottlenecks: {e}")
+            return []
+
+    # =========================================================================
     # INCIDENT PATTERN ANALYSIS (ENHANCED)
     # =========================================================================
 
@@ -1034,10 +1151,15 @@ class AIAnalytics:
     # VERSION PERFORMANCE ANALYSIS
     # =========================================================================
 
-    def analyze_version_performance(self, lookback_days=None):
+    def analyze_version_performance(self, lookback_days=None, include_all_versions=False):
         """
         Analyze performance changes between process versions
         Detects regressions and improvements across deployments
+
+        Args:
+            lookback_days: Number of days to analyze
+            include_all_versions: If True, returns complete version history per process
+                                  If False, returns only latest 2 versions comparison (legacy behavior)
         """
         try:
             if lookback_days is None:
@@ -1049,17 +1171,28 @@ class AIAnalytics:
             critical_threshold = self._get_config('VERSION_REGRESSION_CRITICAL_PCT', 100.0)
             max_results = self._get_config('AI_UI_RESULTS_LIMIT', 20)
 
+            # Get business-critical process keys for filtering
+            business_keys = self._get_business_critical_process_keys(lookback_days)
+
+            process_filter = ""
+            if business_keys:
+                process_list = "', '".join(business_keys)
+                process_filter = f"AND proc_def_key_ IN ('{process_list}')"
+
             query = f"""
                 WITH version_data AS (
                     SELECT 
                         pi.proc_def_key_,
                         SUBSTRING(pi.proc_def_id_ FROM ':([0-9]+):') as version,
                         EXTRACT(EPOCH FROM (pi.end_time_ - pi.start_time_)) as duration_s,
-                        pi.start_time_
+                        pi.start_time_,
+                        pi.id_ as instance_id,
+                        pi.business_key_
                     FROM act_hi_procinst pi
                     WHERE pi.start_time_ > NOW() - INTERVAL '{lookback_days} days'
                       AND pi.end_time_ IS NOT NULL
                       AND pi.end_time_ > pi.start_time_
+                      {process_filter}
                 )
                 SELECT 
                     proc_def_key_,
@@ -1070,7 +1203,9 @@ class AIAnalytics:
                     PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_s) as p95_duration_s,
                     STDDEV(duration_s) as std_duration_s,
                     MIN(start_time_) as first_used,
-                    MAX(start_time_) as last_used
+                    MAX(start_time_) as last_used,
+                    MIN(instance_id) as sample_instance_id,
+                    (ARRAY_AGG(business_key_ ORDER BY start_time_ DESC) FILTER (WHERE business_key_ IS NOT NULL))[1] as sample_business_key
                 FROM version_data
                 WHERE version IS NOT NULL
                 GROUP BY proc_def_key_, version
@@ -1087,6 +1222,7 @@ class AIAnalytics:
             if not results:
                 return {
                     'version_comparisons': [],
+                    'version_history': [],
                     'regressions': [],
                     'improvements': [],
                     'total_processes': 0,
@@ -1151,6 +1287,9 @@ class AIAnalytics:
                         'last_used': latest['last_used'].isoformat() if latest.get('last_used') else None,
                         'direction': 'regression' if change_pct > regression_threshold else 'improvement' if change_pct < -regression_threshold else 'stable',
                         'severity': severity,
+                        'sample_instance_id': latest.get('sample_instance_id'),
+                        'sample_business_key': latest.get('sample_business_key'),
+                        'all_versions_count': len(versions_sorted),
                         'all_versions': [
                             {
                                 'version': v['version'],
@@ -1158,9 +1297,11 @@ class AIAnalytics:
                                 'p95_s': round(self._safe_float(v['p95_duration_s']) or 0, 2),
                                 'count': int(v['instance_count']),
                                 'first_used': v['first_used'].isoformat() if v.get('first_used') else None,
-                                'last_used': v['last_used'].isoformat() if v.get('last_used') else None
+                                'last_used': v['last_used'].isoformat() if v.get('last_used') else None,
+                                'sample_instance_id': v.get('sample_instance_id'),
+                                'sample_business_key': v.get('sample_business_key')
                             } for v in versions_sorted
-                        ]
+                        ] if include_all_versions else []
                     }
 
                     version_comparisons.append(comparison)
@@ -1181,7 +1322,7 @@ class AIAnalytics:
             regressions.sort(key=lambda x: x['change_pct'], reverse=True)
             improvements.sort(key=lambda x: x['change_pct'])
 
-            return {
+            result = {
                 'version_comparisons': version_comparisons,
                 'regressions': regressions[:max_results],
                 'improvements': improvements[:max_results],
@@ -1192,6 +1333,12 @@ class AIAnalytics:
                 'analysis_window_days': lookback_days,
                 'message': f'Analyzed {len(version_comparisons)} processes with version changes'
             }
+
+            # Add flag to indicate if complete history is included
+            if include_all_versions:
+                result['includes_complete_history'] = True
+
+            return result
 
         except Exception as e:
             logger.error(f"Error analyzing version performance: {e}")
@@ -1210,7 +1357,7 @@ class AIAnalytics:
     def analyze_extreme_variability(self, process_categories=None):
         """
         Detect processes with extreme P95/Median ratios (dangerously unpredictable)
-        These processes are unsuitable for SLA-critical workflows
+        ENHANCED: Now includes sample slow instances with business keys
         """
         try:
             if process_categories is None:
@@ -1225,12 +1372,14 @@ class AIAnalytics:
                 }
 
             extreme_processes = []
+            lookback_days = self._get_config('AI_CAPACITY_TRAINING_DAYS', 90)
 
             # Use config thresholds
             extreme_threshold = self._get_config('EXTREME_VARIABILITY_RATIO_EXTREME', 100.0)
             high_threshold = self._get_config('EXTREME_VARIABILITY_RATIO_HIGH', 50.0)
             medium_threshold = self._get_config('EXTREME_VARIABILITY_RATIO_MEDIUM', 20.0)
             max_results = self._get_config('AI_UI_RESULTS_LIMIT', 20)
+            sample_limit = self._get_config('INCIDENT_PATTERN_SAMPLE_LIMIT', 5)
 
             for proc_key, data in process_categories.items():
                 p95_median_ratio = data.get('p95_median_ratio', 0)
@@ -1247,6 +1396,38 @@ class AIAnalytics:
                     else:
                         severity = 'medium'
 
+                    # ENHANCEMENT: Get sample slow instances
+                    sample_query = f"""
+                        SELECT 
+                            id_ as instance_id,
+                            business_key_,
+                            EXTRACT(EPOCH FROM (end_time_ - start_time_)) as duration_s,
+                            start_time_,
+                            end_time_
+                        FROM act_hi_procinst
+                        WHERE proc_def_key_ = '{proc_key}'
+                          AND end_time_ IS NOT NULL
+                          AND start_time_ > NOW() - INTERVAL '{lookback_days} days'
+                          AND EXTRACT(EPOCH FROM (end_time_ - start_time_)) > {p95_s}
+                        ORDER BY EXTRACT(EPOCH FROM (end_time_ - start_time_)) DESC
+                        LIMIT {sample_limit}
+                    """
+
+                    sample_results = safe_execute(
+                        lambda: execute_query(sample_query),
+                        default_value=[],
+                        context=f"Getting sample instances for {proc_key}"
+                    )
+
+                    sample_instances = [{
+                        'instance_id': row['instance_id'],
+                        'business_key': row.get('business_key_', 'N/A'),
+                        'duration_seconds': round(float(row['duration_s']), 2),
+                        'start_time': row['start_time'].isoformat() if row.get('start_time') else None,
+                        'end_time': row['end_time'].isoformat() if row.get('end_time') else None,
+                        'exceeds_p95': True
+                    } for row in sample_results]
+
                     extreme_processes.append({
                         'process_key': proc_key,
                         'category': category,
@@ -1259,7 +1440,8 @@ class AIAnalytics:
                         'instance_count': data.get('instance_count', 0),
                         'severity': severity,
                         'message': f'P95 is {p95_median_ratio:.0f}x longer than median - HIGHLY unpredictable',
-                        'recommendation': self._get_variability_recommendation(p95_median_ratio, severity)
+                        'recommendation': self._get_variability_recommendation(p95_median_ratio, severity),
+                        'sample_slow_instances': sample_instances  # NEW
                     })
 
             # Sort by ratio (worst first)
@@ -1297,6 +1479,7 @@ class AIAnalytics:
         """
         Enterprise load pattern analysis: business days vs weekends, peak hours
         Critical for capacity planning and batch job scheduling
+        ENHANCED: Now filters to business-critical processes only for better performance
         """
         try:
             if lookback_days is None:
@@ -1306,6 +1489,14 @@ class AIAnalytics:
             business_hours_end = self._get_config('BUSINESS_HOURS_END', 19)
             weekend_days = self._get_config('WEEKEND_DAYS', [0, 6])
             peak_hours_limit = self._get_config('LOAD_PATTERN_PEAK_HOURS_LIMIT', 10)
+
+            # Get business-critical process keys for filtering
+            business_keys = self._get_business_critical_process_keys(lookback_days)
+
+            process_filter = ""
+            if business_keys:
+                process_list = "', '".join(business_keys)
+                process_filter = f"AND proc_def_key_ IN ('{process_list}')"
 
             # Daily patterns (business vs weekend)
             day_query = f"""
@@ -1325,6 +1516,7 @@ class AIAnalytics:
                     MAX(EXTRACT(EPOCH FROM (COALESCE(end_time_, NOW()) - start_time_))) as max_duration_s
                 FROM act_hi_procinst
                 WHERE start_time_ > NOW() - INTERVAL '{lookback_days} days'
+                  {process_filter}
                 GROUP BY EXTRACT(DOW FROM start_time_)
                 ORDER BY day_of_week
             """
@@ -1343,6 +1535,7 @@ class AIAnalytics:
                     AVG(EXTRACT(EPOCH FROM (COALESCE(end_time_, NOW()) - start_time_))) as avg_duration_s
                 FROM act_hi_procinst
                 WHERE start_time_ > NOW() - INTERVAL '{lookback_days} days'
+                  {process_filter}
                 GROUP BY EXTRACT(HOUR FROM start_time_)
                 ORDER BY hourly_instances DESC"""
 
@@ -1615,7 +1808,7 @@ class AIAnalytics:
                         'avg_duration_seconds': round(avg, 2) if avg else None,
                         'duration_vs_p95_ratio': round(current_dur / p95, 1) if p95 and p95 > 0 else None,
                         'status': status,
-                        'historical_count': int(row.get('historical_count', 0)),
+                        'historical_count': int(row.get('historical_count') or 0),
                         'message': self._get_stuck_message(status, current_dur, p95)
                     })
 
@@ -1657,6 +1850,17 @@ class AIAnalytics:
         else:  # attention
             return f"Attention: Running for {hours:.1f}h - Longer than typical but within acceptable range"
 
+    def _get_stuck_recommendation(self, severity: str, max_running_seconds: float, stuck_count: int) -> str:
+        """Generate recommendation for stuck processes"""
+        hours = max_running_seconds / 3600
+        
+        if severity == 'critical':
+            return f"CRITICAL: {stuck_count} instance(s) stuck for up to {hours:.1f}h - Terminate or investigate immediately to prevent resource exhaustion"
+        elif severity == 'warning':
+            return f"WARNING: {stuck_count} instance(s) running longer than expected ({hours:.1f}h max) - Review for stuck activities or external dependencies"
+        else:
+            return f"Monitor {stuck_count} instance(s) - Currently within acceptable range but exceeding typical duration"
+
     # =========================================================================
     # OUTLIER PATTERN ANALYSIS
     # =========================================================================
@@ -1664,7 +1868,7 @@ class AIAnalytics:
     def analyze_outlier_patterns(self, lookback_days=None):
         """
         IQR-based outlier detection for each process
-        Identifies processes with excessive unpredictability
+        ENHANCED: Now includes extreme outlier tracking, sample instances, and process category filtering
         """
         try:
             if lookback_days is None:
@@ -1676,8 +1880,17 @@ class AIAnalytics:
             high_outlier_threshold = self._get_config('OUTLIER_HIGH_PERCENTAGE_THRESHOLD', 15.0)
             medium_outlier_threshold = self._get_config('OUTLIER_MEDIUM_PERCENTAGE_THRESHOLD', 5.0)
             max_results = self._get_config('AI_UI_RESULTS_LIMIT', 20)
+            sample_limit = self._get_config('INCIDENT_PATTERN_SAMPLE_LIMIT', 5)
 
-            # Get quartile data for all processes
+            # Get business-critical process keys for filtering
+            business_keys = self._get_business_critical_process_keys(lookback_days)
+
+            process_filter = ""
+            if business_keys:
+                process_list = "', '".join(business_keys)
+                process_filter = f"AND proc_def_key_ IN ('{process_list}')"
+
+            # Get quartile data for business-critical processes only
             query = f"""
                 SELECT 
                     proc_def_key_,
@@ -1689,6 +1902,7 @@ class AIAnalytics:
                 WHERE start_time_ > NOW() - INTERVAL '{lookback_days} days'
                   AND end_time_ IS NOT NULL
                   AND end_time_ > start_time_
+                  {process_filter}
                 GROUP BY proc_def_key_
                 HAVING COUNT(*) >= {min_instances}
             """
@@ -1722,9 +1936,9 @@ class AIAnalytics:
                 # Calculate outlier thresholds
                 lower_bound = max(0, q1 - iqr_normal * iqr)
                 upper_bound = q3 + iqr_normal * iqr
-                extreme_upper = q3 + iqr_extreme * iqr
+                extreme_upper = q3 + iqr_extreme * iqr  # ENHANCED
 
-                # Count actual outliers
+                # Count actual outliers AND extreme outliers
                 outlier_query = f"""
                     SELECT 
                         COUNT(*) as outlier_count,
@@ -1749,13 +1963,47 @@ class AIAnalytics:
                 extreme_count = int(outlier_results[0]['extreme_count']) if outlier_results else 0
                 outlier_pct = (outlier_count / total * 100) if total > 0 else 0
 
-                # Determine severity using config thresholds
+                # Determine severity
                 if outlier_pct > high_outlier_threshold:
                     severity = 'high'
                 elif outlier_pct > medium_outlier_threshold:
                     severity = 'medium'
                 else:
                     severity = 'low'
+
+                # ENHANCEMENT: Get sample outlier instances if high severity
+                sample_outliers = []
+                if severity in ['high', 'medium'] and outlier_count > 0:
+                    sample_query = f"""
+                        SELECT 
+                            id_ as instance_id,
+                            business_key_,
+                            EXTRACT(EPOCH FROM (end_time_ - start_time_)) as duration_s,
+                            start_time_,
+                            end_time_
+                        FROM act_hi_procinst
+                        WHERE proc_def_key_ = '{proc_key}'
+                          AND start_time_ > NOW() - INTERVAL '{lookback_days} days'
+                          AND end_time_ IS NOT NULL
+                          AND EXTRACT(EPOCH FROM (end_time_ - start_time_)) > {upper_bound}
+                        ORDER BY EXTRACT(EPOCH FROM (end_time_ - start_time_)) DESC
+                        LIMIT {sample_limit}
+                    """
+
+                    sample_results = safe_execute(
+                        lambda: execute_query(sample_query),
+                        default_value=[],
+                        context=f"Getting sample outliers for {proc_key}"
+                    )
+
+                    sample_outliers = [{
+                        'instance_id': r['instance_id'],
+                        'business_key': r.get('business_key_', 'N/A'),
+                        'duration_seconds': round(float(r['duration_s']), 2),
+                        'is_extreme': float(r['duration_s']) > extreme_upper,
+                        'start_time': r['start_time'].isoformat() if r.get('start_time') else None,
+                        'end_time': r['end_time'].isoformat() if r.get('end_time') else None
+                    } for r in sample_results]
 
                 analysis = {
                     'process_key': proc_key,
@@ -1765,13 +2013,14 @@ class AIAnalytics:
                     'iqr_seconds': round(iqr, 2),
                     'lower_bound_seconds': round(lower_bound, 2),
                     'upper_bound_seconds': round(upper_bound, 2),
-                    'extreme_threshold_seconds': round(extreme_upper, 2),
+                    'extreme_threshold_seconds': round(extreme_upper, 2),  # ENHANCED
                     'avg_duration_seconds': round(avg, 2),
                     'outlier_count': outlier_count,
-                    'extreme_outlier_count': extreme_count,
+                    'extreme_outlier_count': extreme_count,  # ENHANCED
                     'outlier_percentage': round(outlier_pct, 2),
                     'has_extreme_outliers': extreme_count > 0,
-                    'severity': severity
+                    'severity': severity,
+                    'sample_outlier_instances': sample_outliers  # NEW
                 }
 
                 outlier_analysis.append(analysis)
@@ -1806,6 +2055,200 @@ class AIAnalytics:
                 'error': str(e)
             }
 
+    def generate_critical_insights_summary(self, analysis_data: dict) -> dict:
+        """
+        Generate critical insights summary based on analysis (from analyze_db_data.py)
+        Provides executive-ready, actionable insights
+        """
+        try:
+            insights = {
+                'extreme_variability_alerts': [],
+                'version_regressions': [],
+                'stuck_instance_details': [],
+                'load_optimization': {},
+                'high_outlier_alerts': [],
+                'top_optimization_targets': []
+            }
+
+            # 1. EXTREME VARIABILITY ALERTS
+            extreme_var = analysis_data.get('extreme_variability', {})
+            extreme_procs = extreme_var.get('extreme_processes', [])
+
+            for proc in extreme_procs[:3]:  # Top 3
+                if proc['severity'] in ['extreme', 'high']:
+                    insights['extreme_variability_alerts'].append({
+                        'process_key': proc['process_key'],
+                        'p95_median_ratio': proc['p95_median_ratio'],
+                        'median_seconds': proc['median_seconds'],
+                        'p95_seconds': proc['p95_seconds'],
+                        'severity': proc['severity'],
+                        'message': f"P95 is {proc['p95_median_ratio']:.0f}x median - Investigation required",
+                        'recommendation': proc['recommendation'],
+                        'sample_instances': proc.get('sample_slow_instances', [])
+                    })
+
+            # 2. VERSION REGRESSIONS
+            version_data = analysis_data.get('version_analysis', {})
+            regressions = version_data.get('regressions', [])
+
+            for reg in regressions[:3]:  # Top 3
+                if reg.get('severity') in ['critical', 'high']:
+                    insights['version_regressions'].append({
+                        'process_key': reg['process_key'],
+                        'latest_version': reg['latest_version'],
+                        'previous_version': reg['previous_version'],
+                        'change_pct': reg['change_pct'],
+                        'latest_avg_s': reg['latest_avg_s'],
+                        'previous_avg_s': reg['previous_avg_s'],
+                        'severity': reg['severity'],
+                        'recommendation': f"ROLLBACK to version {reg['previous_version']} immediately"
+                    })
+
+            # 3. STUCK INSTANCE DETAILS (with business keys and sample instances)
+            stuck = analysis_data.get('stuck_processes', {})
+            stuck_list = stuck.get('stuck_processes', [])
+
+            # Group by process and collect sample instances
+            by_process = {}
+            for s in stuck_list:
+                proc = s['process_key']
+                if proc not in by_process:
+                    by_process[proc] = {
+                        'stuck_count': 0,
+                        'max_running_seconds': 0,
+                        'p95_seconds': s.get('expected_p95_seconds'),
+                        'severity': 'normal',
+                        'sample_stuck_instances': []
+                    }
+
+                by_process[proc]['stuck_count'] += 1
+
+                # Track max running time
+                if s['stuck_for_seconds'] > by_process[proc]['max_running_seconds']:
+                    by_process[proc]['max_running_seconds'] = s['stuck_for_seconds']
+
+                # Track highest severity
+                severity_order = {'critical': 4, 'warning': 3, 'attention': 2, 'normal': 1}
+                if severity_order.get(s['status'], 0) > severity_order.get(by_process[proc]['severity'], 0):
+                    by_process[proc]['severity'] = s['status']
+
+                # Collect sample instances (up to 5 per process)
+                if len(by_process[proc]['sample_stuck_instances']) < 5:
+                    by_process[proc]['sample_stuck_instances'].append({
+                        'instance_id': s['instance_id'],
+                        'business_key': s['business_key'],
+                        'running_seconds': s['stuck_for_seconds'],
+                        'running_hours': s['stuck_for_hours'],
+                        'running_days': s['stuck_for_days'],
+                        'start_time': s['start_time'],
+                        'status': s['status'],
+                        'current_activity': s.get('current_activity')
+                    })
+
+            # Convert to list and add to insights (top 5 processes)
+            for proc_key, data in sorted(by_process.items(),
+                                        key=lambda x: x[1]['max_running_seconds'],
+                                        reverse=True)[:5]:
+                insights['stuck_instance_details'].append({
+                    'process_key': proc_key,
+                    'stuck_count': data['stuck_count'],
+                    'max_running_seconds': data['max_running_seconds'],
+                    'max_running_hours': round(data['max_running_seconds'] / 3600, 2),
+                    'max_running_days': round(data['max_running_seconds'] / 86400, 2),
+                    'p95_seconds': data['p95_seconds'],
+                    'severity': data['severity'],
+                    'sample_stuck_instances': data['sample_stuck_instances'],
+                    'message': f"{data['stuck_count']} instance(s) stuck - longest running for {round(data['max_running_seconds'] / 3600, 1)}h",
+                    'recommendation': self._get_stuck_recommendation(data['severity'], data['max_running_seconds'], data['stuck_count'])
+                })
+
+            # 4. LOAD OPTIMIZATION
+            load_patterns = analysis_data.get('load_patterns', {})
+            business_summary = load_patterns.get('business_summary', {})
+
+            if business_summary:
+                business_days = business_summary.get('business_days', {})
+                weekends = business_summary.get('weekends', {})
+                peak_hours = business_summary.get('peak_hours', [])
+
+                total_instances = business_days.get('total_instances', 0) + weekends.get('total_instances', 0)
+                weekend_pct = (weekends.get('total_instances', 0) / total_instances * 100) if total_instances > 0 else 0
+
+                insights['load_optimization'] = {
+                    'business_instances': business_days.get('total_instances', 0),
+                    'weekend_instances': weekends.get('total_instances', 0),
+                    'weekend_percentage': round(weekend_pct, 1),
+                    'peak_hour': peak_hours[0]['hour'] if peak_hours else None,
+                    'peak_hour_instances': peak_hours[0]['instances'] if peak_hours else 0,
+                    'weekend_vs_business': business_summary.get('weekend_vs_business', {}),
+                    'recommendations': business_summary.get('recommendations', [])
+                }
+
+            # 5. HIGH OUTLIER ALERTS
+            outliers = analysis_data.get('outlier_patterns', {})
+            high_outlier_procs = outliers.get('high_outlier_processes', [])
+
+            for proc in high_outlier_procs[:5]:  # Top 5
+                insights['high_outlier_alerts'].append({
+                    'process_key': proc['process_key'],
+                    'outlier_percentage': proc['outlier_percentage'],
+                    'extreme_outlier_count': proc['extreme_outlier_count'],
+                    'total_instances': proc['total_instances'],
+                    'severity': proc['severity'],
+                    'message': proc['message'],
+                    'recommendation': proc['recommendation'],
+                    'sample_instances': proc.get('sample_outlier_instances', [])
+                })
+
+            # 6. TOP OPTIMIZATION TARGETS
+            bottlenecks = analysis_data.get('bottlenecks', {}).get('bottlenecks', [])
+
+            for idx, bottleneck in enumerate(bottlenecks[:3], 1):  # Top 3
+                if bottleneck.get('impact_hours_per_week', 0) > 10:
+                    potential_savings = bottleneck['impact_hours_per_week'] * 0.1
+
+                    insights['top_optimization_targets'].append({
+                        'rank': idx,
+                        'process': bottleneck['process_key'],
+                        'activity': bottleneck['activity_name'],
+                        'activity_type': bottleneck.get('activity_type', 'unknown'),
+                        'impact_hours_per_week': bottleneck['impact_hours_per_week'],
+                        'potential_savings_hours_week': round(potential_savings, 1),
+                        'potential_savings_hours_year': round(potential_savings * 52, 0),
+                        'avg_duration_seconds': bottleneck['avg_duration_ms'] / 1000,
+                        'executions': bottleneck['executions'],
+                        'recommendation': bottleneck.get('recommendation', 'Optimize this activity')
+                    })
+
+            return {
+                'insights': insights,
+                'total_critical_alerts': len(insights['extreme_variability_alerts']) + len(insights['version_regressions']),
+                'total_stuck_processes': len(insights['stuck_instance_details']),
+                'total_optimization_targets': len(insights['top_optimization_targets']),
+                'overall_health': self._assess_overall_health(insights)
+            }
+
+        except Exception as e:
+            logger.error(f"Error generating critical insights: {e}")
+            return {
+                'insights': {},
+                'error': str(e)
+            }
+
+    def _assess_overall_health(self, insights: dict) -> str:
+        """Assess overall system health based on insights"""
+        critical_count = len(insights.get('extreme_variability_alerts', [])) + \
+                         len(insights.get('version_regressions', []))
+
+        if critical_count == 0:
+            return 'excellent'
+        elif critical_count <= 2:
+            return 'good'
+        elif critical_count <= 5:
+            return 'warning'
+        else:
+            return 'critical'
+
     # =========================================================================
     # BOTTLENECK IDENTIFICATION (ENHANCED)
     # =========================================================================
@@ -1814,6 +2257,7 @@ class AIAnalytics:
         """
         Identify process bottlenecks by analyzing activity durations
         Enhanced with activity types, CV, and specific recommendations
+        ENHANCED: Now filters to business-critical processes only for better performance
         """
         try:
             if lookback_days is None:
@@ -1823,6 +2267,14 @@ class AIAnalytics:
             min_data = self._get_config('AI_MIN_DATA', 10)
             max_results = self._get_config('AI_UI_RESULTS_LIMIT', 20)
             min_duration = self._get_config('BOTTLENECK_MIN_DURATION_SECONDS', 1.0)
+
+            # Get business-critical process keys for filtering
+            business_keys = self._get_business_critical_process_keys(lookback_days)
+
+            process_filter = ""
+            if business_keys:
+                process_list = "', '".join(business_keys)
+                process_filter = f"AND proc_def_key_ IN ('{process_list}')"
 
             query = f"""
                 SELECT 
@@ -1836,6 +2288,7 @@ class AIAnalytics:
                 WHERE end_time_ IS NOT NULL
                 AND end_time_ > NOW() - INTERVAL '{lookback_days} days'
                 AND act_id_ IS NOT NULL
+                {process_filter}
                 ORDER BY end_time_ DESC
                 LIMIT {max_activities}
             """
@@ -1939,6 +2392,7 @@ class AIAnalytics:
     def predict_job_failures(self, lookback_days=None):
         """
         Analyze job failure patterns and predict failure-prone jobs
+        ENHANCED: Now filters to business-critical processes only for better performance
         """
         try:
             if lookback_days is None:
@@ -1951,11 +2405,20 @@ class AIAnalytics:
             warning_failure_pct = self._get_config('JOB_FAILURE_WARNING_PCT', 10.0)
             monitor_failure_pct = self._get_config('JOB_FAILURE_MONITOR_PCT', 5.0)
 
+            # Get business-critical process keys for filtering
+            business_keys = self._get_business_critical_process_keys(lookback_days)
+
+            process_filter = ""
+            if business_keys:
+                process_list = "', '".join(business_keys)
+                process_filter = f"AND process_def_key_ IN ('{process_list}')"
+
             # First try standard job log approach
             query = f"""
                 SELECT 
                     COALESCE(job_def_type_, 'unknown') as job_def_type_,
                     job_def_configuration_,
+                    process_def_key_,
                     CASE 
                         WHEN job_exception_msg_ IS NOT NULL AND job_exception_msg_ != '' THEN 'failed'
                         ELSE 'success'
@@ -1963,6 +2426,7 @@ class AIAnalytics:
                     timestamp_
                 FROM act_hi_job_log
                 WHERE timestamp_ > NOW() - INTERVAL '{lookback_days} days'
+                  {process_filter}
                 ORDER BY timestamp_ DESC
                 LIMIT {max_job_logs}
             """
@@ -1977,15 +2441,23 @@ class AIAnalytics:
             if not results or len(results) == 0:
                 logger.info("No job logs found, analyzing from activity failures")
 
+                # For act_hi_actinst table, use proc_def_key_ not process_def_key_
+                activity_process_filter = ""
+                if business_keys:
+                    process_list = "', '".join(business_keys)
+                    activity_process_filter = f"AND proc_def_key_ IN ('{process_list}')"
+
                 query_fallback = f"""
                     SELECT 
                         act_type_ as job_type,
+                        proc_def_key_,
                         COUNT(*) as total,
                         COUNT(CASE WHEN end_time_ IS NULL THEN 1 END) as incomplete
                     FROM act_hi_actinst
                     WHERE start_time_ > NOW() - INTERVAL '{lookback_days} days'
                     AND act_type_ IN ('serviceTask', 'sendTask', 'businessRuleTask', 'scriptTask')
-                    GROUP BY act_type_
+                    {activity_process_filter}
+                    GROUP BY act_type_, proc_def_key_
                     HAVING COUNT(*) >= {min_data}
                 """
 
@@ -2216,6 +2688,7 @@ class AIAnalytics:
     def get_process_leaderboard(self, lookback_days=None):
         """
         Performance leaderboard for process definitions
+        ENHANCED: Now filters to business-critical processes only for better performance
         """
         try:
             if lookback_days is None:
@@ -2223,6 +2696,14 @@ class AIAnalytics:
 
             min_data = self._get_config('AI_MIN_DATA', 10)
             max_results = self._get_config('AI_UI_RESULTS_LIMIT', 20)
+
+            # Get business-critical process keys for filtering
+            business_keys = self._get_business_critical_process_keys(lookback_days)
+
+            process_filter = ""
+            if business_keys:
+                process_list = "', '".join(business_keys)
+                process_filter = f"AND proc_def_key_ IN ('{process_list}')"
 
             # Get grade thresholds from config
             grade_a_completion = self._get_config('PROCESS_GRADE_A_COMPLETION_PCT', 95.0)
@@ -2242,6 +2723,7 @@ class AIAnalytics:
                     COUNT(*) FILTER (WHERE delete_reason_ LIKE '%incident%') as failed_count
                 FROM act_hi_procinst
                 WHERE start_time_ > NOW() - INTERVAL '{lookback_days} days'
+                  {process_filter}
                 GROUP BY proc_def_key_
                 HAVING COUNT(*) >= {min_data}
                 ORDER BY instance_count DESC
@@ -2394,6 +2876,7 @@ class AIAnalytics:
         """
         Advanced stuck activity detection using statistical percentile thresholds
         Identifies activities taking abnormally long based on historical patterns
+        ENHANCED: Now filters to business-critical processes only for better performance
         """
         try:
             if lookback_days is None:
@@ -2404,6 +2887,14 @@ class AIAnalytics:
             max_activities = self._get_config('AI_MAX_INSTANCES', 50000)
             min_data = self._get_config('AI_MIN_DATA', 10)
             max_results = self._get_config('AI_UI_RESULTS_LIMIT', 20)
+
+            # Get business-critical process keys for filtering
+            business_keys = self._get_business_critical_process_keys(lookback_days)
+
+            process_filter = ""
+            if business_keys:
+                process_list = "', '".join(business_keys)
+                process_filter = f"AND proc_def_key_ IN ('{process_list}')"
 
             # Build activity duration statistics
             query = f"""
@@ -2416,6 +2907,7 @@ class AIAnalytics:
                     FROM act_hi_actinst
                     WHERE start_time_ > NOW() - INTERVAL '{lookback_days * 3} days'
                     AND act_id_ IS NOT NULL
+                    {process_filter}
                 ),
                 activity_stats AS (
                     SELECT 
@@ -3151,10 +3643,9 @@ class AIAnalytics:
         Generate actionable AI recommendations based on all analysis
         """
         recommendations = []
+        max_recommendations = self._get_config('AI_UI_RESULTS_LIMIT', 20)
 
         try:
-            max_recommendations = self._get_config('AI_UI_RESULTS_LIMIT', 20)
-
             # Check anomalies
             if analysis_results.get('anomalies', {}).get('anomalies'):
                 count = len(analysis_results['anomalies']['anomalies'])
@@ -3233,6 +3724,236 @@ class AIAnalytics:
             logger.error(f"Error generating recommendations: {e}")
 
         return recommendations[:max_recommendations]
+
+    # =========================================================================
+    # CRITICAL INSIGHTS GENERATION
+    # =========================================================================
+
+    def generate_critical_insights(self, analysis_data=None):
+        """
+        Generate critical insights with specific instance IDs and business keys
+        Based on analyze_db_data.py generate_critical_insights() function
+
+        Provides actionable recommendations with concrete examples:
+        - Extreme variability warnings (P95/median > 100x)
+        - Version regression alerts (>100% slower)
+        - Stuck instance deep dive with oldest per process
+        - Load optimization opportunities
+        - Outlier-heavy process warnings (>15%)
+        - Top 3 activity optimization targets with ROI
+        """
+        try:
+            insights = {
+                'extreme_variability': [],
+                'version_regressions': [],
+                'stuck_instances': [],
+                'load_optimizations': [],
+                'outlier_warnings': [],
+                'activity_targets': [],
+                'timestamp': datetime.now().isoformat()
+            }
+
+            # If no analysis data provided, gather it
+            if not analysis_data:
+                analysis_data = {}
+
+            # 1. EXTREME VARIABILITY DETECTION (P95 >> Median)
+            if 'extreme_variability' in analysis_data:
+                for proc in analysis_data['extreme_variability'].get('extreme_processes', [])[:5]:
+                    if proc.get('variance_ratio', 0) > 100:
+                        insights['extreme_variability'].append({
+                            'process_key': proc['process_key'],
+                            'median_s': proc['median_s'],
+                            'p95_s': proc['p95_s'],
+                            'ratio': proc['variance_ratio'],
+                            'severity': proc['severity'],
+                            'sample_instance_id': proc.get('sample_instance_id'),
+                            'sample_business_key': proc.get('sample_business_key'),
+                            'recommendation': f"Investigate why some instances take {proc['variance_ratio']:.0f}x longer. Check for external dependencies, stuck subprocesses, or consider splitting into fast/slow paths.",
+                            'actions': [
+                                'Check for external dependencies causing delays',
+                                'Look for error retries or stuck subprocess',
+                                'Consider splitting into fast-path and slow-path variants'
+                            ]
+                        })
+
+            # 2. VERSION REGRESSIONS (>100% slower)
+            if 'version_analysis' in analysis_data:
+                for reg in analysis_data['version_analysis'].get('regressions', [])[:3]:
+                    if reg.get('change_pct', 0) > 100:
+                        insights['version_regressions'].append({
+                            'process_key': reg['process_key'],
+                            'latest_version': reg['latest_version'],
+                            'previous_version': reg['previous_version'],
+                            'degradation_pct': reg['change_pct'],
+                            'latest_avg_s': reg['latest_avg_s'],
+                            'previous_avg_s': reg['previous_avg_s'],
+                            'sample_instance_id': reg.get('sample_instance_id'),
+                            'sample_business_key': reg.get('sample_business_key'),
+                            'severity': 'critical',
+                            'recommendation': f"ROLLBACK to version {reg['previous_version']} immediately - Version {reg['latest_version']} is {reg['change_pct']:.1f}% slower",
+                            'actions': [
+                                'Investigate code changes between versions',
+                                'Check database query performance',
+                                'Review external API changes',
+                                f"Consider rollback to v{reg['previous_version']}"
+                            ]
+                        })
+
+            # 3. STUCK INSTANCE DEEP DIVE
+            if 'stuck_processes' in analysis_data:
+                stuck_by_process = {}
+                for stuck in analysis_data['stuck_processes'].get('stuck_processes', []):
+                    proc_key = stuck['process_key']
+                    if proc_key not in stuck_by_process:
+                        stuck_by_process[proc_key] = []
+                    stuck_by_process[proc_key].append(stuck)
+
+                for proc_key, stuck_list in list(stuck_by_process.items())[:3]:
+                    oldest = max(stuck_list, key=lambda x: x['stuck_for_hours'])
+                    insights['stuck_instances'].append({
+                        'process_key': proc_key,
+                        'stuck_count': len(stuck_list),
+                        'oldest_hours': oldest['stuck_for_hours'],
+                        'oldest_days': oldest['stuck_for_days'],
+                        'oldest_instance_id': oldest['instance_id'],
+                        'oldest_business_key': oldest['business_key'],
+                        'severity': 'critical' if len(stuck_list) > 50 else 'warning',
+                        'recommendation': f"{len(stuck_list)} instance(s) stuck for up to {oldest['stuck_for_days']:.0f} days",
+                        'actions': [
+                            'Check for waiting external callbacks',
+                            'Look for missing message correlation',
+                            'Review stuck user tasks or timers',
+                            f"Investigate instance {oldest['instance_id'][:16]}... | BKey: {oldest['business_key']}"
+                        ]
+                    })
+
+            # 4. LOAD PATTERN OPTIMIZATIONS
+            if 'load_patterns' in analysis_data:
+                load_data = analysis_data['load_patterns'].get('business_summary', {})
+                weekend_data = load_data.get('weekends', {})
+                business_data = load_data.get('business_days', {})
+
+                if weekend_data.get('total_instances', 0) > 0 and business_data.get('total_instances', 0) > 0:
+                    total = weekend_data['total_instances'] + business_data['total_instances']
+                    weekend_ratio = (weekend_data['total_instances'] / total) * 100
+
+                    if weekend_ratio < 20:
+                        insights['load_optimizations'].append({
+                            'type': 'weekend_underutilization',
+                            'weekend_pct': round(weekend_ratio, 1),
+                            'severity': 'info',
+                            'recommendation': f"Weekend load is only {weekend_ratio:.1f}% of total traffic - schedule batch jobs on weekends",
+                            'actions': [
+                                'Schedule data cleanup processes on weekends',
+                                'Move report generation to weekend hours',
+                                'Run archive operations during low-load periods'
+                            ]
+                        })
+
+                peak_hours = load_data.get('peak_hours', [])
+                if peak_hours:
+                    peak = peak_hours[0]
+                    insights['load_optimizations'].append({
+                        'type': 'peak_hour_optimization',
+                        'peak_hour': peak['hour'],
+                        'peak_instances': peak['instances'],
+                        'severity': 'info',
+                        'recommendation': f"Peak load at {peak['hour']:02d}:00 with {peak['instances']:,} instances",
+                        'actions': [
+                            f"Pre-warm caches before {peak['hour']:02d}:00",
+                            f"Scale up resources at {peak['hour']-1:02d}:00",
+                            f"Delay non-critical jobs until after {peak['hour']+2:02d}:00"
+                        ]
+                    })
+
+            # 5. OUTLIER-HEAVY PROCESSES (>15%)
+            if 'outlier_patterns' in analysis_data:
+                for outlier in analysis_data['outlier_patterns'].get('outlier_analysis', [])[:5]:
+                    if outlier.get('outlier_pct', 0) > 15:
+                        insights['outlier_warnings'].append({
+                            'process_key': outlier['process_key'],
+                            'outlier_pct': outlier['outlier_pct'],
+                            'outlier_count': outlier['outlier_count'],
+                            'total_count': outlier['total_count'],
+                            'threshold_s': outlier.get('iqr_upper_threshold_s', 0),
+                            'sample_outliers': outlier.get('sample_outliers', [])[:3],
+                            'severity': 'high' if outlier['outlier_pct'] > 20 else 'medium',
+                            'recommendation': f"Process is HIGHLY unpredictable with {outlier['outlier_pct']:.1f}% outliers",
+                            'actions': [
+                                "Don't use for SLA-critical workflows",
+                                'Implement timeout safeguards',
+                                'Add monitoring alerts for P99 violations',
+                                'Investigate root cause of variability'
+                            ]
+                        })
+
+            # 6. TOP 3 ACTIVITY OPTIMIZATION TARGETS (with ROI)
+            if 'activity_bottlenecks' in analysis_data:
+                activities = analysis_data['activity_bottlenecks'].get('activities', [])
+                # Sort by potential savings
+                sorted_activities = sorted(activities, key=lambda x: x.get('potential_savings_hours', 0), reverse=True)[:3]
+
+                for idx, act in enumerate(sorted_activities, 1):
+                    insights['activity_targets'].append({
+                        'rank': idx,
+                        'process_key': act['process_key'],
+                        'activity_name': act['activity_name'],
+                        'activity_type': act['activity_type'],
+                        'execution_count': act['execution_count'],
+                        'avg_duration_s': act['avg_duration_s'],
+                        'p95_duration_s': act['p95_duration_s'],
+                        'total_time_hours': act['total_time_hours'],
+                        'potential_savings_hours': act['potential_savings_hours'],
+                        'sample_instance_id': act.get('sample_instance_id'),
+                        'sample_business_key': act.get('sample_business_key'),
+                        'severity': 'info',
+                        'recommendation': f"10% improvement saves {act['potential_savings_hours']:.0f} hours",
+                        'actions': [
+                            'Reduce manual work with automation' if act['activity_type'] == 'userTask' else 'Optimize service call performance',
+                            'Add decision support tools' if act['activity_type'] == 'userTask' else 'Consider caching or parallelization',
+                            f"Investigate sample: {act.get('sample_instance_id', 'N/A')[:16]}... | BKey: {act.get('sample_business_key', 'N/A')}"
+                        ]
+                    })
+
+            # Calculate summary statistics
+            insights['summary'] = {
+                'critical_issues': len(insights['version_regressions']) + len([s for s in insights['stuck_instances'] if s['severity'] == 'critical']),
+                'warnings': len(insights['extreme_variability']) + len(insights['outlier_warnings']),
+                'optimization_opportunities': len(insights['activity_targets']) + len(insights['load_optimizations']),
+                'total_potential_savings_hours': sum(a['potential_savings_hours'] for a in insights['activity_targets'])
+            }
+
+            logger.info(f"Generated critical insights: {insights['summary']['critical_issues']} critical, {insights['summary']['warnings']} warnings")
+            return insights
+
+        except Exception as e:
+            logger.error(f"Error generating critical insights: {e}")
+            return {
+                'extreme_variability': [],
+                'version_regressions': [],
+                'stuck_instances': [],
+                'load_optimizations': [],
+                'outlier_warnings': [],
+                'activity_targets': [],
+                'summary': {'critical_issues': 0, 'warnings': 0, 'optimization_opportunities': 0},
+                'error': str(e)
+            }
+
+    # =========================================================================
+    # ALIAS FUNCTIONS (for API compatibility)
+    # =========================================================================
+
+    def detect_extreme_variability(self, lookback_days=None):
+        """
+        Alias for analyze_extreme_variability (for API endpoint compatibility)
+        """
+        # Get process categories first
+        cat_result = self.get_process_categories(lookback_days=lookback_days)
+        process_categories = cat_result.get('categories', {})
+
+        # Call the main analysis function
+        return self.analyze_extreme_variability(process_categories=process_categories)
 
 
 # Singleton instance

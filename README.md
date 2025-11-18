@@ -323,18 +323,6 @@ and just add configuration file in /javaagent/ folder inside project folder, the
 ```
 ---
 
-## Configuration
-
-All configuration via environment variables. See `.env.example` for full reference.
-
-**Key Variables:**
-- `DB_*` - PostgreSQL connection
-- `CAMUNDA_NODE_*` - Camunda REST API endpoints (supports multiple nodes)
-- `JMX_NODE_*` - JMX/Micrometer endpoints (optional)
-- `CAMUNDA_API_USER/PASSWORD` - Basic auth (optional)
-- `JVM_METRICS_SOURCE` - `jmx` or `micrometer`
-- `SSL_VERIFY` - `true`/`false` for HTTPS verification
-
 ## Architecture
 
 **📚 Detailed architecture:** [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)

@@ -1,7 +1,7 @@
 """
 API routes - RESTful endpoints
 """
-from flask import Blueprint, jsonify, current_app
+from flask import Blueprint, jsonify, current_app, request
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from helpers.error_handler import handle_errors
@@ -283,6 +283,9 @@ def api_ai_insights():
     def get_process_variability():
         return ('process_variability', ai.detect_extreme_variability(lookback_days=lookback_days))
 
+    def get_outlier_patterns():
+        return ('outlier_patterns', ai.analyze_outlier_patterns(lookback_days=lookback_days))
+
     # Execute all AI analysis in parallel
     insights = {}
     tasks = [
@@ -296,10 +299,11 @@ def api_ai_insights():
         get_sla_predictions,
         get_version_performance,
         get_load_patterns,
-        get_process_variability
+        get_process_variability,
+        get_outlier_patterns
     ]
 
-    with ThreadPoolExecutor(max_workers=11) as executor:
+    with ThreadPoolExecutor(max_workers=12) as executor:
         future_to_task = {executor.submit(task): task for task in tasks}
 
         for future in as_completed(future_to_task):
@@ -312,6 +316,7 @@ def api_ai_insights():
 
     # Generate recommendations based on collected insights
     insights['recommendations'] = ai.get_ai_recommendations(insights)
+    insights['critical_insights'] = ai.generate_critical_insights_summary(insights)
     insights['timestamp'] = datetime.now().isoformat()
 
     return jsonify(insights)
@@ -445,6 +450,68 @@ def api_ai_variable_impact(process_def_key):
     return jsonify(impact)
 
 
+@api_bp.route('/ai/activity-bottlenecks')
+@handle_errors(context="Getting activity bottlenecks")
+def api_ai_activity_bottlenecks():
+    """Get activity-level bottleneck analysis across all business-critical processes"""
+    ai = get_ai_analytics()
+    lookback_days = request.args.get('days', default=30, type=int)
+    limit = request.args.get('limit', default=30, type=int)
+
+    result = ai.analyze_activity_bottlenecks(
+        lookback_days=lookback_days,
+        limit=limit
+    )
+
+    return jsonify({
+        'activities': result,
+        'count': len(result),
+        'analysis_window_days': lookback_days,
+        'timestamp': datetime.now().isoformat()
+    })
+
+
+@api_bp.route('/ai/version-history')
+@handle_errors(context="Getting complete version history")
+def api_ai_version_history():
+    """Get complete version performance history for all processes (not just latest 2)"""
+    ai = get_ai_analytics()
+    lookback_days = request.args.get('days', default=180, type=int)
+
+    result = ai.analyze_version_performance(
+        lookback_days=lookback_days,
+        include_all_versions=True
+    )
+
+    return jsonify(result)
+
+
+@api_bp.route('/ai/critical-insights')
+@handle_errors(context="Getting critical insights")
+def api_ai_critical_insights():
+    """
+    Get critical insights with actionable recommendations
+    Includes specific instance IDs, business keys, and ROI calculations
+    """
+    ai = get_ai_analytics()
+    lookback_days = request.args.get('days', default=30, type=int)
+
+    # Gather all analysis data for comprehensive insights
+    analysis_data = {
+        'extreme_variability': ai.analyze_extreme_variability(),
+        'version_analysis': ai.analyze_version_performance(lookback_days=90),
+        'stuck_processes': ai.analyze_stuck_processes(lookback_days=lookback_days),
+        'load_patterns': ai.analyze_load_patterns(lookback_days=90),
+        'outlier_patterns': ai.analyze_outlier_patterns(lookback_days=90),
+        'activity_bottlenecks': {'activities': ai.analyze_activity_bottlenecks(lookback_days=30, limit=30)}
+    }
+
+    # Generate critical insights
+    insights = ai.generate_critical_insights(analysis_data)
+
+    return jsonify(insights)
+
+
 # ===== NEW PROFESSIONAL ANALYSIS ENDPOINTS =====
 
 @api_bp.route('/ai/process-categories')
@@ -455,6 +522,48 @@ def api_ai_process_categories():
     lookback_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
 
     result = ai.get_process_categories(lookback_days=lookback_days)
+
+    # Transform data for frontend display
+    categories = result.get('categories', {})
+
+    # Define category order (fastest to slowest)
+    category_order = ['ultra_fast', 'very_fast', 'fast_background', 'standard',
+                      'extended', 'long_running', 'batch_manual']
+
+    # Group by category and calculate median
+    category_data = {}
+    for proc_key, proc_data in categories.items():
+        cat = proc_data['category']
+        if cat not in category_data:
+            category_data[cat] = {
+                'label': proc_data['category_label'],
+                'count': 0,
+                'median_values': []
+            }
+        category_data[cat]['count'] += 1
+        category_data[cat]['median_values'].append(proc_data['median_seconds'])
+
+    # Build ordered category distribution
+    category_distribution = {}
+    for cat in category_order:
+        if cat in category_data:
+            data = category_data[cat]
+            median_vals = sorted(data['median_values'])
+            mid = len(median_vals) // 2
+            if len(median_vals) % 2 == 0 and len(median_vals) > 0:
+                median_seconds = (median_vals[mid - 1] + median_vals[mid]) / 2
+            elif len(median_vals) > 0:
+                median_seconds = median_vals[mid]
+            else:
+                median_seconds = 0
+
+            category_distribution[cat] = {
+                'label': data['label'],
+                'count': data['count'],
+                'median_seconds': round(median_seconds, 2)
+            }
+
+    result['category_distribution'] = category_distribution
     result['timestamp'] = datetime.now().isoformat()
 
     return jsonify(result)
@@ -468,6 +577,19 @@ def api_ai_version_performance():
     lookback_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
 
     result = ai.analyze_version_performance(lookback_days=lookback_days)
+    result['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(result)
+
+
+@api_bp.route('/ai/process-variability')
+@handle_errors(context="Detecting process variability")
+def api_ai_process_variability():
+    """Detect processes with extreme P95/Median ratios (alias endpoint)"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
+
+    result = ai.detect_extreme_variability(lookback_days=lookback_days)
     result['timestamp'] = datetime.now().isoformat()
 
     return jsonify(result)
@@ -496,6 +618,7 @@ def api_ai_load_patterns():
     result['timestamp'] = datetime.now().isoformat()
 
     return jsonify(result)
+
 
 
 @api_bp.route('/ai/stuck-processes')
@@ -610,6 +733,7 @@ def api_ai_comprehensive_analysis():
 
     # Generate comprehensive recommendations
     analysis['professional_insights'] = ai.generate_professional_insights(analysis)
+    analysis['critical_insights'] = ai.generate_critical_insights_summary(analysis)
     analysis['timestamp'] = datetime.now().isoformat()
     analysis['analysis_mode'] = 'quick' if quick_mode else 'full'
 
