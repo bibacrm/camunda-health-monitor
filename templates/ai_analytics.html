@@ -31,12 +31,6 @@
                 </h2>
                 <span class="ml-2 text-xs px-3 py-1 bg-sky-600 text-white rounded-full">POWERED BY ML</span>
             </div>
-            <button @click="refreshAIInsights()"
-                    :disabled="aiLoading"
-                    class="inline-flex items-center px-4 py-2 border border-sky-300 dark:border-sky-600 shadow-sm text-sm font-medium rounded-md text-sky-700 dark:text-sky-300 bg-white dark:bg-gray-800 hover:bg-sky-50 dark:hover:bg-sky-900/30 disabled:opacity-50">
-                <i data-lucide="refresh-cw" class="h-4 w-4 mr-2" :class="{ 'animate-spin': aiLoading }"></i>
-                Refresh AI
-            </button>
         </div>
 
         <!-- AI Content - Lazy load when scrolled into view -->
@@ -155,16 +149,16 @@
                         <!-- End Trends & Planning Tab -->
 
                     </div> <!-- End Tab Content Container -->
+
+                    <!-- Modals for AI insights -->
+                    {% include 'partials/anomaly_modal.html' %}
+                    {% include 'partials/incident_modal.html' %}
+                    {% include 'partials/variability_modal.html' %}
+                    {% include 'partials/outlier_modal.html' %}
                 </div>
 
             </template>
         </div>
-
-        <!-- Modals for AI insights -->
-        {% include 'partials/anomaly_modal.html' %}
-        {% include 'partials/incident_modal.html' %}
-        {% include 'partials/variability_modal.html' %}
-        {% include 'partials/outlier_modal.html' %}
         {% include 'partials/category_modal.html' %}
         {% include 'partials/stuck_modal.html' %}
 

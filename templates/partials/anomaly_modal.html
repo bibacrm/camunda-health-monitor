@@ -16,7 +16,7 @@
             </button>
         </div>
         <div class="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
-            <template x-if="aiData.anomalies.anomalies?.length > 0">
+            <template x-if="aiData.anomalies && aiData.anomalies.anomalies?.length > 0">
                 <div class="space-y-6">
                     <template x-for="(anomaly, idx) in aiData.anomalies.anomalies" :key="idx">
                         <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -202,7 +202,7 @@
                     </template>
                 </div>
             </template>
-            <template x-if="!aiData.anomalies.anomalies?.length">
+            <template x-if="!aiData.anomalies?.anomalies?.length">
                 <div class="text-center py-8">
                     <i data-lucide="check-circle" class="h-12 w-12 text-green-500 mx-auto mb-2"></i>
                     <p class="text-gray-600 dark:text-gray-400">All processes are operating within

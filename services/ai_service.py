@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 
 from helpers.error_handler import safe_execute
 from helpers.db_helper import execute_query
+from services.database_service import timed_cache
 
 logger = logging.getLogger('champa_monitor.ai_service')
 
@@ -207,6 +208,7 @@ class AIAnalytics:
 
         return " | ".join(reasons)
 
+    @timed_cache(seconds=3600)
     def _get_business_critical_process_keys(self, lookback_days=None):
         """
         Get list of business-critical process keys (excluding ultra_fast)
@@ -230,6 +232,7 @@ class AIAnalytics:
     # CLUSTER HEALTH SCORING
     # =========================================================================
 
+    @timed_cache(seconds=300)
     def get_cluster_health_score(self, cluster_data, db_metrics):
         """
         Calculate composite AI health score (0-100)
@@ -446,6 +449,7 @@ class AIAnalytics:
     # PROCESS CATEGORIZATION
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def get_process_categories(self, lookback_days=None):
         """
         Categorize all processes by duration (Phase 1 of professional analysis)
@@ -555,6 +559,7 @@ class AIAnalytics:
     # ANOMALY DETECTION (ENHANCED)
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def detect_process_anomalies(self, lookback_days=None):
         """
         Detect anomalies in process execution times using historical data
@@ -810,6 +815,7 @@ class AIAnalytics:
     # ACTIVITY BOTTLENECK ANALYSIS
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def analyze_activity_bottlenecks(self, lookback_days=None, limit=30):
         """
         Analyze slowest activities across business-critical processes
@@ -927,6 +933,7 @@ class AIAnalytics:
     # INCIDENT PATTERN ANALYSIS (ENHANCED)
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def analyze_incident_patterns(self, lookback_days=None):
         """
         Cluster similar incidents using text analysis
@@ -1151,6 +1158,7 @@ class AIAnalytics:
     # VERSION PERFORMANCE ANALYSIS
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def analyze_version_performance(self, lookback_days=None, include_all_versions=False):
         """
         Analyze performance changes between process versions
@@ -1354,6 +1362,7 @@ class AIAnalytics:
     # EXTREME VARIABILITY DETECTION
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def analyze_extreme_variability(self, process_categories=None):
         """
         Detect processes with extreme P95/Median ratios (dangerously unpredictable)
@@ -1475,6 +1484,7 @@ class AIAnalytics:
     # LOAD PATTERN ANALYSIS
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def analyze_load_patterns(self, lookback_days=None):
         """
         Enterprise load pattern analysis: business days vs weekends, peak hours
@@ -1747,6 +1757,7 @@ class AIAnalytics:
     # STUCK PROCESS DETECTION
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def analyze_stuck_processes(self, lookback_days=None):
         """
         Detect stuck process instances with business keys and instance IDs
@@ -1914,6 +1925,7 @@ class AIAnalytics:
     # OUTLIER PATTERN ANALYSIS
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def analyze_outlier_patterns(self, lookback_days=None):
         """
         IQR-based outlier detection for each process
@@ -2302,6 +2314,7 @@ class AIAnalytics:
     # BOTTLENECK IDENTIFICATION (ENHANCED)
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def identify_bottlenecks(self, lookback_days=None):
         """
         Identify process bottlenecks by analyzing activity durations
@@ -2438,6 +2451,7 @@ class AIAnalytics:
     # JOB FAILURE PREDICTION
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def predict_job_failures(self, lookback_days=None):
         """
         Analyze job failure patterns and predict failure-prone jobs
@@ -2641,6 +2655,7 @@ class AIAnalytics:
     # NODE PERFORMANCE ANALYSIS
     # =========================================================================
 
+    @timed_cache(seconds=300)
     def analyze_node_performance(self, cluster_nodes):
         """
         Rank nodes by performance and identify underperformers
@@ -2734,6 +2749,7 @@ class AIAnalytics:
     # PROCESS LEADERBOARD
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def get_process_leaderboard(self, lookback_days=None):
         """
         Performance leaderboard for process definitions
@@ -2845,6 +2861,7 @@ class AIAnalytics:
     # SLA BREACH PREDICTION
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def predict_sla_breaches(self, threshold_hours=None):
         """
         Predict which active tasks are likely to breach SLA
@@ -2921,6 +2938,7 @@ class AIAnalytics:
     # ADVANCED ML ENDPOINTS
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def find_stuck_activities_smart(self, lookback_days=None):
         """
         Advanced stuck activity detection using statistical percentile thresholds
@@ -3062,6 +3080,7 @@ class AIAnalytics:
                 'error': str(e)
             }
 
+    @timed_cache(seconds=3600)
     def predict_process_duration(self, process_def_key: str, instance_variables: Optional[Dict] = None):
         """
         Predict duration for a running or new process instance
@@ -3222,6 +3241,7 @@ class AIAnalytics:
                 'model_type': 'error'
             }
 
+    @timed_cache(seconds=3600)
     def forecast_capacity(self, lookback_days=None, forecast_days=None):
         """
         Forecast future capacity needs based on historical load patterns
@@ -3341,6 +3361,7 @@ class AIAnalytics:
                 'error': str(e)
             }
 
+    @timed_cache(seconds=3600)
     def analyze_variable_impact(self, process_def_key: str, variable_names: Optional[List[str]] = None):
         """
         Analyze which process variables correlate with failures or performance
@@ -3993,6 +4014,7 @@ class AIAnalytics:
     # ALIAS FUNCTIONS (for API compatibility)
     # =========================================================================
 
+    @timed_cache(seconds=3600)
     def detect_extreme_variability(self, lookback_days=None):
         """
         Alias for analyze_extreme_variability (for API endpoint compatibility)

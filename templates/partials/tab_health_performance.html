@@ -21,26 +21,26 @@
         </div>
 
         <!-- Anomalies Detected -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-lg cursor-pointer hover:shadow-xl transition-shadow"
-             @click="$refs.anomalyModal.classList.toggle('hidden'); $nextTick(() => lucide.createIcons())"
-             :class="(aiData.anomalies.anomalies?.length || 0) > 0 ? 'border-l-4 border-l-yellow-500' : ''">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-lg cursor-pointer hover:shadow-xl transition-shadow border-l-4 border-l-yellow-500"
+     @click="if (aiData && aiData.anomalies?.anomalies?.length > 0) { $refs.anomalyModal.classList.toggle('hidden'); $nextTick(() => lucide.createIcons()); }"
+     :class="aiData && (aiData.anomalies?.anomalies?.length || 0) > 0 ? 'border-l-4 border-l-yellow-500' : ''">
             <div class="flex items-center justify-between mb-3">
                 <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Anomalies</span>
                 <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-600 dark:text-yellow-400"></i>
             </div>
             <div class="text-4xl font-bold text-yellow-600 dark:text-yellow-400 mb-2"
-                 x-text="aiData.anomalies.anomalies?.length || 0"></div>
+                 x-text="aiData ? (aiData.anomalies?.anomalies?.length || 0) : 0"></div>
             <p class="text-xs text-gray-500 dark:text-gray-400">
-                <template x-if="(aiData.anomalies.anomalies?.length || 0) > 0">
+                <template x-if="aiData && (aiData.anomalies?.anomalies?.length || 0) > 0">
                     <span>Statistical outliers detected</span>
                 </template>
-                <template x-if="(aiData.anomalies.anomalies?.length || 0) === 0">
+                <template x-if="!aiData || (aiData.anomalies?.anomalies?.length || 0) === 0">
                     <span>All processes normal</span>
                 </template>
             </p>
             <p class="text-xs text-gray-400 dark:text-gray-500 mt-1"
-               x-text="`Analyzed ${aiData.anomalies.total_analyzed || 0} processes`"></p>
-            <template x-if="(aiData.anomalies.anomalies?.length || 0) > 0">
+               x-text="aiData ? `Analyzed ${aiData.anomalies?.total_analyzed || 0} processes` : 'Loading...'"></p>
+            <template x-if="aiData && (aiData.anomalies?.anomalies?.length || 0) > 0">
                 <div class="mt-3 text-xs text-yellow-600 dark:text-yellow-400 font-medium flex items-center">
                     <span>Click to view details</span>
                     <i data-lucide="chevron-right" class="h-3 w-3 ml-1"></i>
@@ -130,301 +130,200 @@
         </div>
     </div>
 
-    <!-- Detailed Insights Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- Process Anomalies -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
-                <div class="flex items-center">
-                    <i data-lucide="alert-triangle" class="mr-2 h-4 w-4 text-yellow-600"></i>
-                    <span>Process Execution Anomalies</span>
-                    <span class="group relative ml-2">
-                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                    ML-powered detection of processes running significantly slower than baseline. Uses statistical analysis (Z-score) and compares recent performance to historical averages. Shows sample slow instances with business keys.
-                </span>
-            </span>
-                </div>
-                <span class="text-xs text-gray-500"
-                      x-text="`Last ${aiData.anomalies.detection_window_days || 7} days`"></span>
-            </div>
-            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                <template x-if="aiData.anomalies.anomalies?.length > 0">
-                    <template
-                            x-for="anomaly in aiData.anomalies.anomalies.slice(0, config.aiDisplayLimits.rows_limit)"
-                            :key="anomaly.process_key">
-                        <div class="flex items-center justify-between py-2 px-3 rounded border-l-4 cursor-pointer hover:shadow-md transition-shadow"
-                             @click="selectedAnomaly = anomaly; $refs.anomalyModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())"
-                             :class="{
-                         'bg-red-50 dark:bg-red-900/20 border-l-red-600': anomaly.severity === 'critical',
-                         'bg-orange-50 dark:bg-orange-900/20 border-l-orange-500': anomaly.severity === 'high',
-                         'bg-yellow-50 dark:bg-yellow-900/20 border-l-yellow-500': anomaly.severity === 'medium',
-                         'bg-blue-50 dark:bg-blue-900/20 border-l-blue-500': anomaly.severity === 'low'
-                     }">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
-                                       :title="anomaly.process_key"
-                                       x-text="anomaly.process_key"></p>
-                                    <span class="text-xs px-2 py-0.5 rounded-full font-semibold uppercase"
-                                          :class="{
-                                      'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400': anomaly.severity === 'critical',
-                                      'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400': anomaly.severity === 'high',
-                                      'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400': anomaly.severity === 'medium',
-                                      'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400': anomaly.severity === 'low'
-                                  }"
-                                          x-text="anomaly.severity"></span>
-                                    <!-- NEW: Show if has sample instances -->
-                                    <template
-                                            x-if="anomaly.sample_instances && anomaly.sample_instances.length > 0">
-                                <span class="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">
-                                    <span x-text="anomaly.sample_instances.length"></span> samples
-                                </span>
-                                    </template>
-                                </div>
-                                <p class="text-xs text-gray-600 dark:text-gray-400">
-                                    Expected: <span x-text="formatDuration(anomaly.expected_avg_ms)"></span>
-                                    →
-                                    Current: <span x-text="formatDuration(anomaly.current_avg_ms)"></span>
 
-                                    <template
-                                            x-if="anomaly.max_duration_ms && anomaly.max_duration_ms > 3600000">
-                                                <span class="text-xs text-red-600 dark:text-red-400 mt-1">
-                                                    ⚠️ Max: <span
-                                                        x-text="formatDuration(anomaly.max_duration_ms)"></span>
-                                                </span>
-                                    </template>
-                                </p>
-                                <template x-if="anomaly.anomaly_types?.includes('extreme_duration')">
-                                    <p class="text-xs text-red-600 dark:text-red-400 mt-1">
-                                        🔴 Potential stuck/hanging process detected
-                                    </p>
-                                </template>
-                                <!-- NEW: Click hint -->
-                                <p class="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">
-                                    Click for sample instances →
-                                </p>
+    <!-- Node Performance Rankings & Process Leaderboard -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Node Performance Rankings -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center">
+                <i data-lucide="award" class="mr-2 h-4 w-4 text-indigo-600"></i>
+                <span>Node Performance Rankings</span>
+                <span class="group relative ml-2">
+                            <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                            <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                Ranks cluster nodes based on JVM health metrics (CPU, memory, GC efficiency). Helps identify underperforming nodes that may need attention.
+                            </span>
+                        </span>
+            </div>
+            <div class="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
+                <template x-if="aiData.node_performance.rankings?.length > 0">
+                    <template x-for="node in aiData.node_performance.rankings" :key="node.node_name">
+                        <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
+                            <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm mr-3"
+                                 :class="{
+                                             'bg-yellow-400 text-yellow-900': node.rank === 1,
+                                             'bg-gray-300 text-gray-700': node.rank === 2,
+                                             'bg-orange-300 text-orange-900': node.rank === 3,
+                                             'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-200': node.rank > 3
+                                         }"
+                                 x-text="node.rank"></div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100"
+                                   x-text="node.node_name"></p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1"
+                                   x-text="node.recommendation"></p>
+                                <div class="flex gap-3 text-xs text-gray-600 dark:text-gray-400">
+                                    <span x-show="node.cpu_load_pct !== undefined">
+                                        CPU: <strong x-text="node.cpu_load_pct.toFixed(1) + '%'"></strong>
+                                    </span>
+                                    <span x-show="node.heap_utilization_pct !== undefined">
+                                        Heap: <strong x-text="node.heap_utilization_pct.toFixed(1) + '%'"></strong>
+                                    </span>
+                                    <span x-show="node.gc_time_ms !== undefined">
+                                        GC: <strong x-text="node.gc_time_ms.toFixed(0) + 'ms'"></strong>
+                                    </span>
+                                </div>
                             </div>
                             <div class="ml-2 text-right">
-                        <span class="text-sm font-bold"
-                              :class="anomaly.deviation_pct > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'"
-                              x-text="(anomaly.deviation_pct > 0 ? '+' : '') + anomaly.deviation_pct + '%'"></span>
-                                <template x-if="anomaly.z_score > 0">
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        Z: <span x-text="anomaly.z_score"></span>
-                                    </p>
-                                </template>
+                                        <span class="text-lg font-bold"
+                                              :class="{
+                                                  'text-green-600 dark:text-green-400': node.performance_score >= 80,
+                                                  'text-yellow-600 dark:text-yellow-400': node.performance_score >= 60 && node.performance_score < 80,
+                                                  'text-red-600 dark:text-red-400': node.performance_score < 60
+                                              }"
+                                              x-text="node.performance_score"></span>
                             </div>
                         </div>
                     </template>
                 </template>
-                <template x-if="!aiData.anomalies.anomalies?.length">
-                    <div class="text-center py-8">
-                        <template x-if="aiData.anomalies.health_status === 'excellent'">
-                            <div>
-                                <i data-lucide="check-circle"
-                                   class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
-                                <p class="text-sm font-semibold text-green-600 dark:text-green-400">Stable
-                                    Performance!</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 px-4"
-                                   x-text="aiData.anomalies.message || 'All processes executing consistently'"></p>
-                            </div>
-                        </template>
-                        <template x-if="aiData.anomalies.health_status !== 'excellent'">
-                            <p class="text-sm text-gray-500 dark:text-gray-400"
-                               x-text="aiData.anomalies.message || 'No anomalies detected'"></p>
-                        </template>
-                    </div>
+                <template x-if="!aiData.node_performance.rankings?.length">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Need at least 2
+                        nodes for
+                        comparison</p>
                 </template>
             </div>
         </div>
 
-        <!-- Incident Patterns -->
+        <!-- Process Performance Leaderboard -->
         <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
             <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
                 <div class="flex items-center">
-                    <i data-lucide="alert-circle" class="mr-2 h-4 w-4 text-orange-600"></i>
-                    <span>Top Incident Patterns</span>
+                    <i data-lucide="trophy" class="mr-2 h-4 w-4 text-yellow-600"></i>
+                    <span>Process Performance Leaderboard</span>
                     <span class="group relative ml-2">
                                 <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
                                 <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                    Analyzes historical incident data or runtime job failures to identify recurring error patterns. Groups by error type and frequency to help prioritize fixes.
+                                    Ranks processes by performance grade (A-F) based on completion rate, average duration, and consistency. Shows best and worst performing processes.
                                 </span>
                             </span>
                 </div>
                 <span class="text-xs text-gray-500"
-                      x-text="`${aiData.incidents.unique_patterns || 0} unique patterns`"></span>
+                      x-text="`${aiData.process_leaderboard.total_processes || 0} processes`"></span>
             </div>
+            <div class="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
+                <template x-if="aiData.process_leaderboard.leaderboard?.length > 0">
+                    <template
+                            x-for="proc in aiData.process_leaderboard.leaderboard.slice(0, config.aiDisplayLimits.rows_limit)"
+                            :key="proc.process_key">
+                        <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
+                            <div class="flex-shrink-0 w-10 h-10 rounded flex items-center justify-center font-bold text-lg mr-3"
+                                 :class="{
+                                             'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': proc.grade === 'A',
+                                             'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': proc.grade === 'B',
+                                             'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400': proc.grade === 'C',
+                                             'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400': proc.grade === 'D',
+                                             'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': proc.grade === 'F'
+                                         }"
+                                 x-text="proc.grade"></div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+                                   :title="proc.process_key"
+                                   x-text="proc.process_key"></p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">
+                                    <span x-text="proc.instance_count"></span> instances ·
+                                    Avg: <span x-text="formatDuration(proc.avg_duration_ms)"></span>
+                                </p>
+                            </div>
+                            <div class="ml-2 text-right text-xs">
+                                <p class="text-green-600 dark:text-green-400"
+                                   x-text="proc.completion_rate_pct + '%'"></p>
+                                <p class="text-gray-500 dark:text-gray-400">complete</p>
+                            </div>
+                        </div>
+                    </template>
+                </template>
+                <template x-if="!aiData.process_leaderboard.leaderboard?.length">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No process data
+                        available</p>
+                </template>
+            </div>
+        </div>
+    </div>
 
-            <!-- Data source warning if from runtime jobs -->
-            <template x-if="aiData.incidents.data_source === 'runtime_jobs'">
-                <div class="mb-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
-                    <i data-lucide="info" class="h-3 w-3 inline mr-1"></i>
-                    <span class="text-yellow-700 dark:text-yellow-300">Analyzing active job exceptions (incident history not logged)</span>
+    <!-- Process Speed Categories (grid continuation) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+             x-intersect.once="!processCategories && !processCategoriesLoading && loadProcessCategories()">
+            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                <div class="flex items-center">
+                    <i data-lucide="layers" class="mr-2 h-4 w-4 text-indigo-600"></i>
+                    <span>Process Speed Categories</span>
+                    <span class="group relative ml-2">
+                                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                    Processes classified by speed: Ultra Fast (<5s), Very Fast (5-30s), Fast Background (<6m), Standard (6-30m), Extended (30m-4h), Long Running (4-24h), Batch/Manual (24h+)
+                                </span>
+                            </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <template x-if="processCategories">
+                                    <span class="text-xs text-gray-500"
+                                          x-text="`${Object.keys(processCategories.categories || {}).length} processes`"></span>
+                    </template>
+                    <button @click="loadProcessCategories()"
+                            :disabled="processCategoriesLoading"
+                            class="inline-flex items-center px-3 py-1.5 border border-indigo-300 dark:border-indigo-600 text-xs font-medium rounded-md text-indigo-700 dark:text-indigo-300 bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50">
+                        <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                           :class="{ 'animate-spin': processCategoriesLoading }"></i>
+                        <span x-text="processCategoriesLoading ? 'Loading...' : 'Refresh'"></span>
+                    </button>
+                </div>
+            </div>
+            <template x-if="processCategoriesLoading">
+                <div class="text-center py-8">
+                    <div class="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto"></div>
+                    <p class="text-sm text-gray-500 mt-2">Loading categories...</p>
                 </div>
             </template>
-
-            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                <template x-if="aiData.incidents.patterns?.length > 0">
-                    <div>
-                        <!-- Root Cause Categories Summary (compact) -->
-                        <template
-                                x-if="aiData.incidents.root_cause_categories && Object.keys(aiData.incidents.root_cause_categories).length > 0">
-                            <div class="mb-3 p-3 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                                <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Root
-                                    Cause
-                                    Breakdown</p>
-                                <div class="flex flex-wrap gap-2">
-                                    <template
-                                            x-for="[category, count] in Object.entries(aiData.incidents.root_cause_categories).sort((a,b) => b[1] - a[1]).slice(0, 5)"
-                                            :key="category">
-                                                <span class="inline-flex items-center text-xs px-2 py-1 bg-white dark:bg-gray-800 rounded-full border border-orange-300 dark:border-orange-700">
-                                                    <span class="font-medium text-gray-900 dark:text-gray-100"
-                                                          x-text="category"></span>
-                                                    <span class="ml-1 text-orange-600 dark:text-orange-400 font-bold"
-                                                          x-text="count"></span>
-                                                </span>
-                                    </template>
-                                </div>
-                            </div>
-                        </template>
-
-                        <template
-                                x-for="(pattern,index) in aiData.incidents.patterns.slice(0, config.aiDisplayLimits.rows_limit)"
-                                :key="pattern.incident_type + index">
-                            <div class="p-3 bg-orange-50 dark:bg-orange-900/20 rounded border-l-2 border-l-orange-500 cursor-pointer hover:shadow-md transition-shadow mt-2"
-                                 @click="selectedIncident = pattern; $refs.incidentModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
-                                <div class="flex items-start justify-between mb-2">
-                                    <div class="flex-1">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100"
-                                               x-text="pattern.incident_type"></p>
-                                            <template x-if="pattern.root_cause">
-                                                    <span class="text-xs px-2 py-0.5 bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-200 rounded"
-                                                          x-text="pattern.root_cause"></span>
-                                            </template>
-                                        </div>
-                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1 line-clamp-2"
-                                           :title="pattern.error_message"
-                                           x-text="pattern.error_message"></p>
-                                    </div>
-                                    <span class="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full font-semibold ml-2"
-                                          x-text="pattern.occurrence_count + 'x'"></span>
-                                </div>
-
-                                <!-- Status and Metrics Row -->
-                                <div class="grid grid-cols-3 gap-2 mb-2 text-xs">
-                                    <div class="text-center p-1 bg-white dark:bg-gray-700/50 rounded">
-                                        <div class="text-gray-500 dark:text-gray-400">Open
-                                            <span class="font-semibold text-red-600 dark:text-red-400"
-                                                  x-text="pattern.open_count || 0"></span>
-                                        </div>
-                                    </div>
-                                    <div class="text-center p-1 bg-white dark:bg-gray-700/50 rounded">
-                                        <div class="text-gray-500 dark:text-gray-400">Resolved
-                                            <span class="font-semibold text-green-600 dark:text-green-400"
-                                                  x-text="pattern.resolved_count || 0"></span>
-                                        </div>
-                                    </div>
-                                    <div class="text-center p-1 bg-white dark:bg-gray-700/50 rounded">
-                                        <div class="text-gray-500 dark:text-gray-400">Avg Time
-                                            <span class="font-semibold text-gray-900 dark:text-gray-100"
-                                                  x-text="(pattern.avg_duration_hours || 0).toFixed(1) + 'h'"></span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Affected Details -->
-                                <div class="text-xs text-gray-500 dark:text-gray-500">
-                                    <template x-if="pattern.source === 'runtime_jobs'">
-                                            <span>
-                                                <span x-text="pattern.retries_exhausted || 0"></span> with no retries ·
-                                                <span x-text="pattern.affected_processes?.length || 0"></span> instance(s)
-                                            </span>
-                                    </template>
-                                    <template x-if="pattern.source !== 'runtime_jobs'">
-                                            <span>
-                                                <span x-text="(pattern.frequency_per_day || 0).toFixed(1)"></span>/day ·
-                                                <span x-text="pattern.affected_processes?.length || 0"></span> process(es)
-                                                <template x-if="pattern.affected_activities?.length > 0">
-                                                    · <span x-text="pattern.affected_activities.length"></span> activity/activities
-                                                </template>
-                                                <template
-                                                        x-if="pattern.sample_instances && pattern.sample_instances.length > 0">
-                                                    <span class="ml-2 text-blue-600 dark:text-blue-400 font-medium">· Click for details →</span>
-                                                </template>
-                                            </span>
-                                    </template>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </template>
-                <template x-if="!aiData.incidents.patterns?.length">
-                    <div class="text-center py-8">
-                        <template x-if="aiData.incidents.health_status === 'excellent'">
-                            <div>
-                                <i data-lucide="check-circle"
-                                   class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
-                                <p class="text-sm font-semibold text-green-600 dark:text-green-400">System
-                                    Healthy!</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1"
-                                   x-text="aiData.incidents.message || 'No incidents detected'"></p>
-                            </div>
-                        </template>
-                        <template x-if="aiData.incidents.health_status !== 'excellent'">
-                            <p class="text-sm text-gray-500 dark:text-gray-400"
-                               x-text="aiData.incidents.message || 'No incident patterns found'"></p>
-                        </template>
-                    </div>
-                </template>
-            </div>
-        </div>
-
-        <!-- Process Bottlenecks -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
-                <div class="flex items-center">
-                    <i data-lucide="trending-down" class="mr-2 h-4 w-4 text-red-600"></i>
-                    <span>Top Process Bottlenecks</span>
-                    <span class="group relative ml-2">
-                                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                                <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                    Identifies activities with longest execution times using P95 percentile analysis. Shows potential optimization targets and estimated time savings per week.
-                                </span>
-                            </span>
-                </div>
-                <span class="text-xs text-gray-500"
-                      x-text="`${aiData.bottlenecks.total_activities_analyzed || 0} activities`"></span>
-            </div>
-            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                <template x-if="aiData.bottlenecks.bottlenecks?.length > 0">
+            <template x-if="processCategories && !processCategoriesLoading">
+                <div class="space-y-2 max-h-80 overflow-y-auto overflow-x-hidden custom-scrollbar">
                     <template
-                            x-for="(bottleneck, index) in aiData.bottlenecks.bottlenecks.slice(0, config.aiDisplayLimits.rows_limit)"
-                            :key="bottleneck.activity_id + index">
-                        <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded border-l-2 border-l-red-500">
-                            <div class="flex items-start justify-between mb-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1"
-                                   :title="bottleneck.activity_name"
-                                   x-text="bottleneck.activity_name"></p>
-                                <span class="text-sm font-bold text-red-600 dark:text-red-400 ml-2"
-                                      x-text="bottleneck.impact_hours_per_week + 'h/wk'"></span>
+                            x-if="processCategories.category_distribution && Object.keys(processCategories.category_distribution).length > 0">
+                        <template
+                                x-for="[cat, data] in Object.entries(processCategories.category_distribution)"
+                                :key="cat">
+                            <div class="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700 last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded px-2 -mx-2 transition-colors"
+                                 @click="selectedCategory = cat; selectedCategoryData = data; $refs.categoryModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
+                                <div class="flex items-center flex-1">
+                                    <div class="w-3 h-3 rounded-full mr-2"
+                                         :class="{
+                                                     'bg-green-500': cat === 'ultra_fast' || cat === 'very_fast',
+                                                     'bg-blue-500': cat === 'fast_background' || cat === 'standard',
+                                                     'bg-yellow-500': cat === 'extended',
+                                                     'bg-orange-500': cat === 'long_running',
+                                                     'bg-red-500': cat === 'batch_manual'
+                                                 }"></div>
+                                    <span class="text-sm text-gray-900 dark:text-gray-100"
+                                          x-text="data.label"></span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                        <span class="text-sm font-semibold text-gray-700 dark:text-gray-300"
+                                              x-text="data.count"></span>
+                                    <span class="text-xs text-gray-500"
+                                          x-text="`~${formatDuration(data.median_seconds * 1000)}`"></span>
+                                </div>
                             </div>
-                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                Avg: <span x-text="formatDuration(bottleneck.avg_duration_ms)"></span> ·
-                                P95: <span x-text="formatDuration(bottleneck.p95_duration_ms)"></span>
-                            </p>
-                            <p class="text-xs text-gray-500 dark:text-gray-500"
-                               x-text="`${bottleneck.executions} executions in ${bottleneck.process_key}`"></p>
+                        </template>
+                    </template>
+                    <template
+                            x-if="!processCategories.category_distribution || Object.keys(processCategories.category_distribution).length === 0">
+                        <div class="text-center py-8">
+                            <i data-lucide="inbox" class="h-12 w-12 text-gray-400 mx-auto mb-2"></i>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">No categories found</p>
                         </div>
                     </template>
-                </template>
-                <template x-if="!aiData.bottlenecks.bottlenecks?.length">
-                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No significant
-                        bottlenecks
-                        detected</p>
-                </template>
-            </div>
+                </div>
+            </template>
         </div>
 
         <!-- Job Failure Predictions -->
@@ -443,7 +342,7 @@
                 <span class="text-xs text-gray-500"
                       x-text="`${aiData.job_failures.total_jobs_analyzed || 0} job types`"></span>
             </div>
-            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+            <div class="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
                 <template x-if="aiData.job_failures.predictions?.length > 0">
                     <div>
                         <!-- All Healthy Banner (when total_failures is 0) -->
@@ -548,201 +447,5 @@
                 </template>
             </div>
         </div>
-    </div>
-
-    <!-- Node Performance Rankings & Process Leaderboard -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- Node Performance Rankings -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center">
-                <i data-lucide="award" class="mr-2 h-4 w-4 text-indigo-600"></i>
-                <span>Node Performance Rankings</span>
-                <span class="group relative ml-2">
-                            <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                            <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                Ranks cluster nodes based on JVM health metrics (CPU, memory, GC efficiency). Helps identify underperforming nodes that may need attention.
-                            </span>
-                        </span>
-            </div>
-            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                <template x-if="aiData.node_performance.rankings?.length > 0">
-                    <template x-for="node in aiData.node_performance.rankings" :key="node.node_name">
-                        <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
-                            <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm mr-3"
-                                 :class="{
-                                             'bg-yellow-400 text-yellow-900': node.rank === 1,
-                                             'bg-gray-300 text-gray-700': node.rank === 2,
-                                             'bg-orange-300 text-orange-900': node.rank === 3,
-                                             'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-200': node.rank > 3
-                                         }"
-                                 x-text="node.rank"></div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100"
-                                   x-text="node.node_name"></p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1"
-                                   x-text="node.recommendation"></p>
-                                <div class="flex gap-3 text-xs text-gray-600 dark:text-gray-400">
-                                    <span x-show="node.cpu_load_pct !== undefined">
-                                        CPU: <strong x-text="node.cpu_load_pct.toFixed(1) + '%'"></strong>
-                                    </span>
-                                    <span x-show="node.heap_utilization_pct !== undefined">
-                                        Heap: <strong x-text="node.heap_utilization_pct.toFixed(1) + '%'"></strong>
-                                    </span>
-                                    <span x-show="node.gc_time_ms !== undefined">
-                                        GC: <strong x-text="node.gc_time_ms.toFixed(0) + 'ms'"></strong>
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="ml-2 text-right">
-                                        <span class="text-lg font-bold"
-                                              :class="{
-                                                  'text-green-600 dark:text-green-400': node.performance_score >= 80,
-                                                  'text-yellow-600 dark:text-yellow-400': node.performance_score >= 60 && node.performance_score < 80,
-                                                  'text-red-600 dark:text-red-400': node.performance_score < 60
-                                              }"
-                                              x-text="node.performance_score"></span>
-                            </div>
-                        </div>
-                    </template>
-                </template>
-                <template x-if="!aiData.node_performance.rankings?.length">
-                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Need at least 2
-                        nodes for
-                        comparison</p>
-                </template>
-            </div>
-        </div>
-
-        <!-- Process Performance Leaderboard -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
-                <div class="flex items-center">
-                    <i data-lucide="trophy" class="mr-2 h-4 w-4 text-yellow-600"></i>
-                    <span>Process Performance Leaderboard</span>
-                    <span class="group relative ml-2">
-                                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                                <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                    Ranks processes by performance grade (A-F) based on completion rate, average duration, and consistency. Shows best and worst performing processes.
-                                </span>
-                            </span>
-                </div>
-                <span class="text-xs text-gray-500"
-                      x-text="`${aiData.process_leaderboard.total_processes || 0} processes`"></span>
-            </div>
-            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                <template x-if="aiData.process_leaderboard.leaderboard?.length > 0">
-                    <template
-                            x-for="proc in aiData.process_leaderboard.leaderboard.slice(0, config.aiDisplayLimits.rows_limit)"
-                            :key="proc.process_key">
-                        <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
-                            <div class="flex-shrink-0 w-10 h-10 rounded flex items-center justify-center font-bold text-lg mr-3"
-                                 :class="{
-                                             'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': proc.grade === 'A',
-                                             'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': proc.grade === 'B',
-                                             'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400': proc.grade === 'C',
-                                             'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400': proc.grade === 'D',
-                                             'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': proc.grade === 'F'
-                                         }"
-                                 x-text="proc.grade"></div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
-                                   :title="proc.process_key"
-                                   x-text="proc.process_key"></p>
-                                <p class="text-xs text-gray-600 dark:text-gray-400">
-                                    <span x-text="proc.instance_count"></span> instances ·
-                                    Avg: <span x-text="formatDuration(proc.avg_duration_ms)"></span>
-                                </p>
-                            </div>
-                            <div class="ml-2 text-right text-xs">
-                                <p class="text-green-600 dark:text-green-400"
-                                   x-text="proc.completion_rate_pct + '%'"></p>
-                                <p class="text-gray-500 dark:text-gray-400">complete</p>
-                            </div>
-                        </div>
-                    </template>
-                </template>
-                <template x-if="!aiData.process_leaderboard.leaderboard?.length">
-                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No process data
-                        available</p>
-                </template>
-            </div>
-        </div>
-    </div>
-
-    <!-- Process Speed Categories (grid continuation) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
-             x-intersect.once="!processCategories && !processCategoriesLoading && loadProcessCategories()">
-            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
-                <div class="flex items-center">
-                    <i data-lucide="layers" class="mr-2 h-4 w-4 text-indigo-600"></i>
-                    <span>Process Speed Categories</span>
-                    <span class="group relative ml-2">
-                                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                                <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                    Processes classified by speed: Ultra Fast (<5s), Very Fast (5-30s), Fast Background (<6m), Standard (6-30m), Extended (30m-4h), Long Running (4-24h), Batch/Manual (24h+)
-                                </span>
-                            </span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <template x-if="processCategories">
-                                    <span class="text-xs text-gray-500"
-                                          x-text="`${Object.keys(processCategories.categories || {}).length} processes`"></span>
-                    </template>
-                    <button @click="loadProcessCategories()"
-                            :disabled="processCategoriesLoading"
-                            class="inline-flex items-center px-3 py-1.5 border border-indigo-300 dark:border-indigo-600 text-xs font-medium rounded-md text-indigo-700 dark:text-indigo-300 bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50">
-                        <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
-                           :class="{ 'animate-spin': processCategoriesLoading }"></i>
-                        <span x-text="processCategoriesLoading ? 'Loading...' : 'Refresh'"></span>
-                    </button>
-                </div>
-            </div>
-            <template x-if="processCategoriesLoading">
-                <div class="text-center py-8">
-                    <div class="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto"></div>
-                    <p class="text-sm text-gray-500 mt-2">Loading categories...</p>
-                </div>
-            </template>
-            <template x-if="processCategories && !processCategoriesLoading">
-                <div class="space-y-2 max-h-64 overflow-y-auto overflow-x-hidden custom-scrollbar">
-                    <template
-                            x-if="processCategories.category_distribution && Object.keys(processCategories.category_distribution).length > 0">
-                        <template
-                                x-for="[cat, data] in Object.entries(processCategories.category_distribution)"
-                                :key="cat">
-                            <div class="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700 last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded px-2 -mx-2 transition-colors"
-                                 @click="selectedCategory = cat; selectedCategoryData = data; $refs.categoryModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
-                                <div class="flex items-center flex-1">
-                                    <div class="w-3 h-3 rounded-full mr-2"
-                                         :class="{
-                                                     'bg-green-500': cat === 'ultra_fast' || cat === 'very_fast',
-                                                     'bg-blue-500': cat === 'fast_background' || cat === 'standard',
-                                                     'bg-yellow-500': cat === 'extended',
-                                                     'bg-orange-500': cat === 'long_running',
-                                                     'bg-red-500': cat === 'batch_manual'
-                                                 }"></div>
-                                    <span class="text-sm text-gray-900 dark:text-gray-100"
-                                          x-text="data.label"></span>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                        <span class="text-sm font-semibold text-gray-700 dark:text-gray-300"
-                                              x-text="data.count"></span>
-                                    <span class="text-xs text-gray-500"
-                                          x-text="`~${formatDuration(data.median_seconds * 1000)}`"></span>
-                                </div>
-                            </div>
-                        </template>
-                    </template>
-                    <template
-                            x-if="!processCategories.category_distribution || Object.keys(processCategories.category_distribution).length === 0">
-                        <div class="text-center py-8">
-                            <i data-lucide="inbox" class="h-12 w-12 text-gray-400 mx-auto mb-2"></i>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">No categories found</p>
-                        </div>
-                    </template>
-                </div>
-            </template>
-        </div>
-    </div> <!-- End grid for Process Categories -->
+    </div> <!-- End grid for Process Categories & Job Failure Predictions -->
 </div>
