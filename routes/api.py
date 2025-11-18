@@ -283,9 +283,6 @@ def api_ai_insights():
     def get_process_variability():
         return ('process_variability', ai.detect_extreme_variability(lookback_days=lookback_days))
 
-    def get_outlier_patterns():
-        return ('outlier_patterns', ai.analyze_outlier_patterns(lookback_days=lookback_days))
-
     # Execute all AI analysis in parallel
     insights = {}
     tasks = [
@@ -299,11 +296,10 @@ def api_ai_insights():
         get_sla_predictions,
         get_version_performance,
         get_load_patterns,
-        get_process_variability,
-        get_outlier_patterns
+        get_process_variability
     ]
 
-    with ThreadPoolExecutor(max_workers=12) as executor:
+    with ThreadPoolExecutor(max_workers=11) as executor:
         future_to_task = {executor.submit(task): task for task in tasks}
 
         for future in as_completed(future_to_task):

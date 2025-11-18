@@ -39,27 +39,28 @@
             </button>
         </div>
 
-        <!-- AI Content -->
+        <!-- AI Content - Lazy load when scrolled into view -->
+        <div x-intersect.once="!aiData && !aiLoading && loadAIInsights()">
 
-        <!-- Loading State -->
-        <template x-if="aiLoading && !aiData">
-            <div class="flex flex-col items-center justify-center py-12">
-                <div class="loader mb-4"></div>
-                <p class="text-gray-600 dark:text-gray-400">AI analyzing the Camunda cluster...</p>
-            </div>
-        </template>
+            <!-- Loading State for AI Insights -->
+            <template x-if="aiLoading && !aiData">
+                <div class="flex flex-col items-center justify-center py-12">
+                    <div class="loader mb-4"></div>
+                    <p class="text-gray-600 dark:text-gray-400">AI analyzing the Camunda cluster...</p>
+                </div>
+            </template>
 
-        <!-- Error State -->
-        <template x-if="aiError && !aiData">
-            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <p class="text-red-700 dark:text-red-300 mb-2">Failed to load AI insights</p>
-                <button @click="refreshAIInsights()" class="text-sm text-red-600 dark:text-red-400 underline">Try Again
-                </button>
-            </div>
-        </template>
+            <!-- Error State -->
+            <template x-if="aiError && !aiData">
+                <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <p class="text-red-700 dark:text-red-300 mb-2">Failed to load AI insights</p>
+                    <button @click="refreshAIInsights()" class="text-sm text-red-600 dark:text-red-400 underline">Try Again
+                    </button>
+                </div>
+            </template>
 
-        <!-- AI Content -->
-        <template x-if="aiData">
+            <!-- AI Content - Core metrics using aiData -->
+            <template x-if="aiData">
             <div>
                 <!-- Health Scores Row -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -719,12 +720,27 @@
                         </div>
                     </div>
                 </div>
+            </template>
+        </div>
 
-                <!-- NEW SECTIONS: Missing HIGH/MEDIUM Priority Data Blocks -->
+        <!-- Modals for AI insights -->
+        {% include 'partials/anomaly_modal.html' %}
+        {% include 'partials/incident_modal.html' %}
+        {% include 'partials/variability_modal.html' %}
+        {% include 'partials/outlier_modal.html' %}
+        {% include 'partials/category_modal.html' %}
+        {% include 'partials/stuck_modal.html' %}
+
+    </div>  <!-- End of AI Intelligence Layer -->
+
+    <!-- Independent sections below load on-demand with lazy loading -->
+
+    <!-- NEW SECTIONS: Missing HIGH/MEDIUM Priority Data Blocks -->
 
                 <!-- Process Categories Distribution -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+                         x-intersect.once="!processCategories && !processCategoriesLoading && loadProcessCategories()">
                         <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
                             <div class="flex items-center">
                                 <i data-lucide="layers" class="mr-2 h-4 w-4 text-indigo-600"></i>
@@ -736,17 +752,20 @@
                                 </span>
                             </span>
                             </div>
-                            <template x-if="processCategories">
-                        <span class="text-xs text-gray-500"
-                              x-text="`${Object.keys(processCategories.categories || {}).length} processes`"></span>
-                            </template>
+                            <div class="flex items-center gap-2">
+                                <template x-if="processCategories">
+                                    <span class="text-xs text-gray-500"
+                                          x-text="`${Object.keys(processCategories.categories || {}).length} processes`"></span>
+                                </template>
+                                <button @click="loadProcessCategories()"
+                                        :disabled="processCategoriesLoading"
+                                        class="inline-flex items-center px-3 py-1.5 border border-indigo-300 dark:border-indigo-600 text-xs font-medium rounded-md text-indigo-700 dark:text-indigo-300 bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50">
+                                    <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                                       :class="{ 'animate-spin': processCategoriesLoading }"></i>
+                                    <span x-text="processCategoriesLoading ? 'Loading...' : 'Refresh'"></span>
+                                </button>
+                            </div>
                         </div>
-                        <template x-if="!processCategories && !processCategoriesLoading">
-                            <button @click="loadProcessCategories()"
-                                    class="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium transition-colors">
-                                Load Process Categories
-                            </button>
-                        </template>
                         <template x-if="processCategoriesLoading">
                             <div class="text-center py-8">
                                 <div class="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto"></div>
@@ -795,7 +814,8 @@
                     </div>
 
                     <!-- Stuck Processes -->
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+                         x-intersect.once="!stuckProcesses && !stuckProcessesLoading && loadStuckProcesses()">
                         <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
                             <div class="flex items-center">
                                 <i data-lucide="pause-circle" class="mr-2 h-4 w-4 text-yellow-600"></i>
@@ -807,22 +827,25 @@
                                 </span>
                             </span>
                             </div>
-                            <template x-if="stuckProcesses">
-                            <span class="text-xs"
-                                  :class="{
-                                      'text-red-600': stuckProcesses.status_counts?.critical > 0,
-                                      'text-yellow-600': stuckProcesses.status_counts?.warning > 0,
-                                      'text-gray-500': !stuckProcesses.status_counts?.critical && !stuckProcesses.status_counts?.warning
-                                  }"
-                                  x-text="`${stuckProcesses.total_stuck || 0} stuck`"></span>
-                            </template>
+                            <div class="flex items-center gap-2">
+                                <template x-if="stuckProcesses">
+                                    <span class="text-xs"
+                                          :class="{
+                                              'text-red-600': stuckProcesses.status_counts?.critical > 0,
+                                              'text-yellow-600': stuckProcesses.status_counts?.warning > 0,
+                                              'text-gray-500': !stuckProcesses.status_counts?.critical && !stuckProcesses.status_counts?.warning
+                                          }"
+                                          x-text="`${stuckProcesses.total_stuck || 0} stuck`"></span>
+                                </template>
+                                <button @click="loadStuckProcesses()"
+                                        :disabled="stuckProcessesLoading"
+                                        class="inline-flex items-center px-3 py-1.5 border border-yellow-300 dark:border-yellow-600 text-xs font-medium rounded-md text-yellow-700 dark:text-yellow-300 bg-white dark:bg-gray-800 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 disabled:opacity-50">
+                                    <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                                       :class="{ 'animate-spin': stuckProcessesLoading }"></i>
+                                    <span x-text="stuckProcessesLoading ? 'Loading...' : 'Refresh'"></span>
+                                </button>
+                            </div>
                         </div>
-                        <template x-if="!stuckProcesses && !stuckProcessesLoading">
-                            <button @click="loadStuckProcesses()"
-                                    class="w-full py-2 px-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium transition-colors">
-                                Load Stuck Processes
-                            </button>
-                        </template>
                         <template x-if="stuckProcessesLoading">
                             <div class="text-center py-8">
                                 <div class="animate-spin h-8 w-8 border-4 border-yellow-500 border-t-transparent rounded-full mx-auto"></div>
@@ -891,7 +914,8 @@
                 <!-- Outlier Patterns & Extreme Variability -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                     <!-- High Outlier Processes (NEW) -->
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+                         x-intersect.once="!outlierPatterns && !outlierPatternsLoading && loadOutlierPatterns()">
                         <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
                             <div class="flex items-center">
                                 <i data-lucide="alert-octagon" class="mr-2 h-4 w-4 text-red-600"></i>
@@ -903,12 +927,34 @@
                                     </span>
                                 </span>
                             </div>
-                            <span class="text-xs text-gray-500"
-                                  x-text="`${aiData.outlier_patterns?.high_outlier_count || 0} processes`"></span>
+                            <div class="flex items-center gap-2">
+                                <template x-if="outlierPatterns">
+                                    <span class="text-xs text-gray-500"
+                                          x-text="`${outlierPatterns.high_outlier_count || 0} processes`"></span>
+                                </template>
+                                <button @click="loadOutlierPatterns()"
+                                        :disabled="outlierPatternsLoading"
+                                        class="inline-flex items-center px-3 py-1.5 border border-red-300 dark:border-red-600 text-xs font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50">
+                                    <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                                       :class="{ 'animate-spin': outlierPatternsLoading }"></i>
+                                    <span x-text="outlierPatternsLoading ? 'Loading...' : 'Refresh'"></span>
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- Loading state -->
+                        <template x-if="outlierPatternsLoading">
+                            <div class="text-center py-8">
+                                <div class="animate-spin h-8 w-8 border-4 border-red-500 border-t-transparent rounded-full mx-auto"></div>
+                                <p class="text-sm text-gray-500 mt-2">Loading outlier patterns...</p>
+                            </div>
+                        </template>
+
+                        <!-- Results -->
+                        <template x-if="outlierPatterns && !outlierPatternsLoading">
                         <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                            <template x-if="aiData.outlier_patterns?.high_outlier_processes?.length > 0">
-                                <template x-for="proc in aiData.outlier_patterns.high_outlier_processes.slice(0, 10)"
+                            <template x-if="outlierPatterns.high_outlier_processes?.length > 0">
+                                <template x-for="proc in outlierPatterns.high_outlier_processes.slice(0, 10)"
                                           :key="proc.process_key">
                                     <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded border-l-2 border-l-red-500 cursor-pointer hover:shadow-md transition-shadow"
                                          @click="selectedOutlierProcess = proc; $refs.outlierModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
@@ -945,7 +991,7 @@
                                     </div>
                                 </template>
                             </template>
-                            <template x-if="!aiData.outlier_patterns?.high_outlier_processes?.length">
+                            <template x-if="!outlierPatterns?.high_outlier_processes?.length">
                                 <div class="text-center py-8">
                                     <i data-lucide="check-circle"
                                        class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
@@ -956,10 +1002,12 @@
                                 </div>
                             </template>
                         </div>
+                        </template>
                     </div>
 
                     <!-- Extreme Variability -->
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+                         x-intersect.once="!extremeVariability && !extremeVariabilityLoading && loadExtremeVariability()">
                         <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
                             <div class="flex items-center">
                                 <i data-lucide="activity" class="mr-2 h-4 w-4 text-red-600"></i>
@@ -971,17 +1019,20 @@
                                 </span>
                             </span>
                             </div>
-                            <template x-if="extremeVariability">
-                            <span class="text-xs text-red-600 dark:text-red-400"
-                                  x-text="`${extremeVariability.extreme_count || 0} unpredictable`"></span>
-                            </template>
+                            <div class="flex items-center gap-2">
+                                <template x-if="extremeVariability">
+                                    <span class="text-xs text-red-600 dark:text-red-400"
+                                          x-text="`${extremeVariability.extreme_count || 0} unpredictable`"></span>
+                                </template>
+                                <button @click="loadExtremeVariability()"
+                                        :disabled="extremeVariabilityLoading"
+                                        class="inline-flex items-center px-3 py-1.5 border border-red-300 dark:border-red-600 text-xs font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50">
+                                    <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                                       :class="{ 'animate-spin': extremeVariabilityLoading }"></i>
+                                    <span x-text="extremeVariabilityLoading ? 'Loading...' : 'Refresh'"></span>
+                                </button>
+                            </div>
                         </div>
-                        <template x-if="!extremeVariability && !extremeVariabilityLoading">
-                            <button @click="loadExtremeVariability()"
-                                    class="w-full py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition-colors">
-                                Analyze Variability
-                            </button>
-                        </template>
                         <template x-if="extremeVariabilityLoading">
                             <div class="text-center py-8">
                                 <div class="animate-spin h-8 w-8 border-4 border-red-500 border-t-transparent rounded-full mx-auto"></div>
@@ -1057,34 +1108,32 @@
                     <!-- Smart Stuck Activities & Capacity Forecast -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                         <!-- Smart Stuck Activity Detection -->
-                        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+                             x-intersect.once="!stuckActivitiesData && !stuckActivitiesLoading && loadStuckActivities()">
                             <div class="flex items-center justify-between mb-3">
                                 <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
                                     <i data-lucide="hourglass" class="mr-2 h-4 w-4 text-red-600"></i>
                                     Smart Stuck Activities
                                 </div>
-                                <div class="group relative">
-                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                                    <div class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                        Statistical P95-based detection. Identifies activities taking abnormally long
-                                        compared
-                                        to historical patterns (not hardcoded timeouts).
+                                <div class="flex items-center gap-2">
+                                    <div class="group relative">
+                                        <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                        <div class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                            Statistical P95-based detection. Identifies activities taking abnormally long
+                                            compared
+                                            to historical patterns (not hardcoded timeouts).
+                                        </div>
                                     </div>
+                                    <button @click="loadStuckActivities()"
+                                            :disabled="stuckActivitiesLoading"
+                                            class="inline-flex items-center px-3 py-1.5 border border-cyan-300 dark:border-cyan-600 text-xs font-medium rounded-md text-cyan-700 dark:text-cyan-300 bg-white dark:bg-gray-800 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 disabled:opacity-50">
+                                        <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                                           :class="{ 'animate-spin': stuckActivitiesLoading }"></i>
+                                        <span x-text="stuckActivitiesLoading ? 'Loading...' : 'Refresh'"></span>
+                                    </button>
                                 </div>
                             </div>
 
-                            <!-- Loading/fetch button -->
-                            <template x-if="!stuckActivitiesData && !stuckActivitiesLoading">
-                                <div class="text-center py-8">
-                                    <button @click="loadStuckActivities()"
-                                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-cyan-600 hover:bg-cyan-700">
-                                        <i data-lucide="play-circle" class="h-4 w-4 mr-2"></i>
-                                        Analyze Activities
-                                    </button>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Click to detect stuck
-                                        activities</p>
-                                </div>
-                            </template>
 
                             <!-- Loading state -->
                             <template x-if="stuckActivitiesLoading">
@@ -1171,34 +1220,31 @@
                         </div>
 
                         <!-- Capacity Forecast -->
-                        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+                             x-intersect.once="!capacityForecastData && !capacityForecastLoading && loadCapacityForecast()">
                             <div class="flex items-center justify-between mb-3">
                                 <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
                                     <i data-lucide="trending-up" class="mr-2 h-4 w-4 text-blue-600"></i>
                                     Capacity Forecast
                                 </div>
-                                <div class="group relative">
-                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                                    <div class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                        30-day load prediction using time series analysis. Helps with infrastructure and
-                                        budget
-                                        planning.
+                                <div class="flex items-center gap-2">
+                                    <div class="group relative">
+                                        <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                        <div class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                            30-day load prediction using time series analysis. Helps with infrastructure and
+                                            budget
+                                            planning.
+                                        </div>
                                     </div>
+                                    <button @click="loadCapacityForecast()"
+                                            :disabled="capacityForecastLoading"
+                                            class="inline-flex items-center px-3 py-1.5 border border-blue-300 dark:border-blue-600 text-xs font-medium rounded-md text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-50">
+                                        <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                                           :class="{ 'animate-spin': capacityForecastLoading }"></i>
+                                        <span x-text="capacityForecastLoading ? 'Loading...' : 'Refresh'"></span>
+                                    </button>
                                 </div>
                             </div>
-
-                            <!-- Loading/fetch button -->
-                            <template x-if="!capacityForecastData && !capacityForecastLoading">
-                                <div class="text-center py-8">
-                                    <button @click="loadCapacityForecast()"
-                                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                                        <i data-lucide="bar-chart-3" class="h-4 w-4 mr-2"></i>
-                                        Generate Forecast
-                                    </button>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Click to forecast capacity
-                                        needs</p>
-                                </div>
-                            </template>
 
                             <!-- Loading state -->
                             <template x-if="capacityForecastLoading">
@@ -1281,7 +1327,8 @@
                     </div>
 
                     <!-- Duration Prediction Tool -->
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-4">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-4"
+                         x-intersect.once="!durationPredictions && !durationPredictionsLoading && !durationPredictionsLoaded && loadAllDurationPredictions()">
                         <div class="flex items-center justify-between mb-3">
                             <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
                                 <i data-lucide="timer" class="mr-2 h-4 w-4 text-green-600"></i>
@@ -1304,20 +1351,6 @@
                             </div>
                         </div>
 
-                        <!-- Auto-load on first view -->
-                        <template
-                                x-if="!durationPredictions && !durationPredictionsLoading && !durationPredictionsLoaded">
-                            <div class="text-center py-8">
-                                <button @click="loadAllDurationPredictions()"
-                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
-                                    <i data-lucide="zap" class="h-4 w-4 mr-2"></i>
-                                    Analyze All Processes
-                                </button>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Click to predict durations for
-                                    all
-                                    process definitions</p>
-                            </div>
-                        </template>
 
                         <!-- Loading State -->
                         <template x-if="durationPredictionsLoading">
@@ -1404,7 +1437,8 @@
 
 
                 <!-- NEW: Activity Bottleneck Analysis Section -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-6">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-6"
+                     x-intersect.once="!activityBottlenecks && !activityBottlenecksLoading && loadActivityBottlenecks()">
                     <div class="flex items-center justify-between mb-4">
                         <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
                             <i data-lucide="zap" class="mr-2 h-5 w-5 text-orange-600 dark:text-orange-400"></i>
@@ -1424,7 +1458,7 @@
                                 class="inline-flex items-center px-4 py-2 border border-orange-300 dark:border-orange-600 shadow-sm text-sm font-medium rounded-md text-orange-700 dark:text-orange-300 bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/30 disabled:opacity-50">
                             <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"
                                :class="{ 'animate-spin': activityBottlenecksLoading }"></i>
-                            <span x-text="activityBottlenecksLoading ? 'Loading...' : 'Load'"></span>
+                            <span x-text="activityBottlenecksLoading ? 'Loading...' : 'Refresh'"></span>
                         </button>
                     </div>
 
@@ -1544,7 +1578,8 @@
                 </div>
 
                 <!-- NEW: Complete Version History Section -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-6">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-6"
+                     x-intersect.once="!versionHistory && !versionHistoryLoading && loadVersionHistory()">
                     <div class="flex items-center justify-between mb-4">
                         <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
                             <i data-lucide="git-branch" class="mr-2 h-5 w-5 text-purple-600 dark:text-purple-400"></i>
@@ -1564,7 +1599,7 @@
                                 class="inline-flex items-center px-4 py-2 border border-purple-300 dark:border-purple-600 shadow-sm text-sm font-medium rounded-md text-purple-700 dark:text-purple-300 bg-white dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/30 disabled:opacity-50">
                             <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"
                                :class="{ 'animate-spin': versionHistoryLoading }"></i>
-                            <span x-text="versionHistoryLoading ? 'Loading...' : 'Load'"></span>
+                            <span x-text="versionHistoryLoading ? 'Loading...' : 'Refresh'"></span>
                         </button>
                     </div>
 
@@ -1733,7 +1768,8 @@
                 </div>
 
                 <!-- NEW: Weekly Load Patterns Section -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-6">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-6"
+                     x-intersect.once="!weeklyLoadPatterns && !weeklyLoadPatternsLoading && loadWeeklyLoadPatterns()">
                     <div class="flex items-center justify-between mb-4">
                         <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
                             <i data-lucide="calendar" class="mr-2 h-5 w-5 text-indigo-600 dark:text-indigo-400"></i>
@@ -1753,7 +1789,7 @@
                                 class="inline-flex items-center px-4 py-2 border border-indigo-300 dark:border-indigo-600 shadow-sm text-sm font-medium rounded-md text-indigo-700 dark:text-indigo-300 bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50">
                             <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"
                                :class="{ 'animate-spin': weeklyLoadPatternsLoading }"></i>
-                            <span x-text="weeklyLoadPatternsLoading ? 'Loading...' : 'Load'"></span>
+                            <span x-text="weeklyLoadPatternsLoading ? 'Loading...' : 'Refresh'"></span>
                         </button>
                     </div>
 
@@ -1888,7 +1924,8 @@
                 </div>
 
                 <!-- NEW: Critical Insights Section -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-6">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-6"
+                     x-intersect.once="!criticalInsights && !criticalInsightsLoading && loadCriticalInsights()">
                     <div class="flex items-center justify-between mb-4">
                         <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
                             <i data-lucide="alert-octagon" class="mr-2 h-5 w-5 text-red-600 dark:text-red-400"></i>
@@ -1908,7 +1945,7 @@
                                 class="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-600 shadow-sm text-sm font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50">
                             <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"
                                :class="{ 'animate-spin': criticalInsightsLoading }"></i>
-                            <span x-text="criticalInsightsLoading ? 'Loading...' : 'Load'"></span>
+                            <span x-text="criticalInsightsLoading ? 'Loading...' : 'Refresh'"></span>
                         </button>
                     </div>
 
@@ -2137,21 +2174,6 @@
                     </template>
                 </div>
 
-                {% include 'partials/anomaly_modal.html' %}
-
-                {% include 'partials/incident_modal.html' %}
-
-                {% include 'partials/variability_modal.html' %}
-
-                {% include 'partials/outlier_modal.html' %}
-
-                {% include 'partials/category_modal.html' %}
-
-                {% include 'partials/stuck_modal.html' %}
-
-            </div>  <!-- End of AI Intelligence Layer -->
-        </template>
-    </div>
 {% endblock %}
 
 {% block extra_scripts %}
