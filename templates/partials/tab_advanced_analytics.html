@@ -1,0 +1,497 @@
+<div x-show="activeTab === 'analytics'" x-transition>
+    <!-- Advanced ML Features Container -->
+    <div class="bg-gradient-to-r from-cyan-100/70 to-sky-50 dark:from-cyan-900/20 dark:to-sky-900/20 rounded-lg p-4 mt-6 mb-6 border border-cyan-200 dark:border-cyan-700"
+         x-intersect.once="loadAdvancedMLFeatures()">
+        <div class="flex items-center mb-4">
+            <i data-lucide="sparkles" class="h-5 w-5 text-cyan-600 dark:text-cyan-400 mr-2"></i>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Advanced ML
+                Features</h3>
+        </div>
+
+        <!-- Smart Stuck Activities & Capacity Forecast -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Smart Stuck Activity Detection -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+                 x-intersect.once="!stuckActivitiesData && !stuckActivitiesLoading && loadStuckActivities()">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                        <i data-lucide="hourglass" class="mr-2 h-4 w-4 text-red-600"></i>
+                        Smart Stuck Activities
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="group relative">
+                            <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                            <div class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                Statistical P95-based detection. Identifies activities taking
+                                abnormally long
+                                compared
+                                to historical patterns (not hardcoded timeouts).
+                            </div>
+                        </div>
+                        <button @click="loadStuckActivities()"
+                                :disabled="stuckActivitiesLoading"
+                                class="inline-flex items-center px-3 py-1.5 border border-cyan-300 dark:border-cyan-600 text-xs font-medium rounded-md text-cyan-700 dark:text-cyan-300 bg-white dark:bg-gray-800 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 disabled:opacity-50">
+                            <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                               :class="{ 'animate-spin': stuckActivitiesLoading }"></i>
+                            <span x-text="stuckActivitiesLoading ? 'Loading...' : 'Refresh'"></span>
+                        </button>
+                    </div>
+                </div>
+
+
+                <!-- Loading state -->
+                <template x-if="stuckActivitiesLoading">
+                    <div class="flex flex-col items-center justify-center py-8">
+                        <div class="loader mb-2"></div>
+                        <p class="text-xs text-gray-500">Analyzing activity patterns...</p>
+                    </div>
+                </template>
+
+                <!-- Results -->
+                <template x-if="stuckActivitiesData && !stuckActivitiesLoading">
+                    <div>
+                        <div class="flex items-center justify-between mb-3 p-2 bg-gray-50 dark:bg-gray-700/30 rounded">
+                                    <span class="text-sm text-gray-600 dark:text-gray-400">
+                                        Found: <span class="font-bold" x-text="stuckActivitiesData.total_found"></span> stuck
+                                    </span>
+                            <span class="text-xs text-gray-500">
+                                        P<span x-text="stuckActivitiesData.threshold_percentile"></span> × <span
+                                    x-text="stuckActivitiesData.threshold_multiplier"></span>
+                                    </span>
+                        </div>
+
+                        <div class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                            <template x-if="stuckActivitiesData.stuck_activities?.length > 0">
+                                <template
+                                        x-for="activity in stuckActivitiesData.stuck_activities.slice(0, 10)"
+                                        :key="activity.activity_instance_id">
+                                    <div class="p-3 rounded border-l-4"
+                                         :class="{
+                                                     'bg-red-50 dark:bg-red-900/20 border-l-red-600': activity.severity === 'critical',
+                                                     'bg-orange-50 dark:bg-orange-900/20 border-l-orange-500': activity.severity === 'high',
+                                                     'bg-yellow-50 dark:bg-yellow-900/20 border-l-yellow-500': activity.severity === 'medium'
+                                                 }">
+                                        <div class="flex items-start justify-between">
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+                                                   :title="activity.activity_name"
+                                                   x-text="activity.activity_name"></p>
+                                                <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                                    Process: <span
+                                                        x-text="activity.process_key"></span>
+                                                </p>
+                                            </div>
+                                            <div class="ml-2 text-right">
+                                                        <span class="text-lg font-bold"
+                                                              :class="{
+                                                                  'text-red-600 dark:text-red-400': activity.severity === 'critical',
+                                                                  'text-orange-600 dark:text-orange-400': activity.severity === 'high',
+                                                                  'text-yellow-600 dark:text-yellow-400': activity.severity === 'medium'
+                                                              }"
+                                                              x-text="activity.duration_ratio + 'x'"></span>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2 flex items-center justify-between text-xs">
+                                                    <span class="text-gray-500 dark:text-gray-400">
+                                                        Stuck for: <span class="font-semibold"
+                                                                         x-text="activity.stuck_for_hours + 'h'"></span>
+                                                    </span>
+                                            <template x-if="activity.z_score">
+                                                        <span class="text-gray-500 dark:text-gray-400">
+                                                            Z-score: <span class="font-semibold"
+                                                                           x-text="activity.z_score"></span>
+                                                        </span>
+                                            </template>
+                                        </div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1"
+                                           x-text="activity.message"></p>
+                                    </div>
+                                </template>
+                            </template>
+
+                            <template x-if="!stuckActivitiesData.stuck_activities?.length">
+                                <div class="text-center py-6">
+                                    <i data-lucide="check-circle"
+                                       class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
+                                    <p class="text-sm font-semibold text-green-600 dark:text-green-400">
+                                        All
+                                        Clear!</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1"
+                                       x-text="stuckActivitiesData.message"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Capacity Forecast -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+                 x-intersect.once="!capacityForecastData && !capacityForecastLoading && loadCapacityForecast()">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                        <i data-lucide="trending-up" class="mr-2 h-4 w-4 text-blue-600"></i>
+                        Capacity Forecast
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="group relative">
+                            <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                            <div class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                30-day load prediction using time series analysis. Helps with
+                                infrastructure and
+                                budget
+                                planning.
+                            </div>
+                        </div>
+                        <button @click="loadCapacityForecast()"
+                                :disabled="capacityForecastLoading"
+                                class="inline-flex items-center px-3 py-1.5 border border-blue-300 dark:border-blue-600 text-xs font-medium rounded-md text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-50">
+                            <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                               :class="{ 'animate-spin': capacityForecastLoading }"></i>
+                            <span x-text="capacityForecastLoading ? 'Loading...' : 'Refresh'"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Loading state -->
+                <template x-if="capacityForecastLoading">
+                    <div class="flex flex-col items-center justify-center py-8">
+                        <div class="loader mb-2"></div>
+                        <p class="text-xs text-gray-500">Forecasting capacity...</p>
+                    </div>
+                </template>
+
+                <!-- Results -->
+                <template x-if="capacityForecastData && !capacityForecastLoading">
+                    <div>
+                        <!-- Summary stats -->
+                        <div class="grid grid-cols-2 gap-3 mb-4">
+                            <div class="p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Growth
+                                    Rate</p>
+                                <p class="text-lg font-bold"
+                                   :class="{
+                                               'text-green-600 dark:text-green-400': capacityForecastData.growth_rate_per_day < 5,
+                                               'text-yellow-600 dark:text-yellow-400': capacityForecastData.growth_rate_per_day >= 5 && capacityForecastData.growth_rate_per_day < 15,
+                                               'text-red-600 dark:text-red-400': capacityForecastData.growth_rate_per_day >= 15
+                                           }"
+                                   x-text="capacityForecastData.growth_rate_per_day + '/day'"></p>
+                            </div>
+                            <div class="p-3 bg-gray-50 dark:bg-gray-700/30 rounded">
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    Confidence</p>
+                                <p class="text-lg font-bold text-blue-600 dark:text-blue-400"
+                                   x-text="Math.round(capacityForecastData.trend_confidence * 100) + '%'"></p>
+                            </div>
+                        </div>
+
+                        <!-- Peak patterns -->
+                        <template x-if="capacityForecastData.patterns">
+                            <div class="mb-3">
+                                <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                    Peak
+                                    Hours:</p>
+                                <div class="flex flex-wrap gap-2">
+                                    <template
+                                            x-for="hour in capacityForecastData.patterns.peak_hours?.slice(0, 3)"
+                                            :key="hour.hour">
+                                                <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                                    <span x-text="hour.hour + ':00'"></span>
+                                                    <span class="ml-1 text-blue-500"
+                                                          x-text="'(' + Math.round(hour.avg_instances) + ')'"></span>
+                                                </span>
+                                    </template>
+                                </div>
+
+                            </div>
+                        </template>
+
+                        <!-- 7-day forecast preview -->
+                        <div class="mt-3">
+                            <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                Next 7
+                                Days:</p>
+                            <div class="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
+                                <template
+                                        x-for="day in capacityForecastData.forecast?.slice(0, 7)"
+                                        :key="day.day">
+                                    <div class="flex items-center justify-between text-xs py-1">
+                                                    <span class="text-gray-600 dark:text-gray-400"
+                                                          x-text="day.date"></span>
+                                        <div class="flex items-center space-x-2">
+                                                    <span class="font-semibold text-gray-900 dark:text-gray-100"
+                                                          x-text="day.predicted_instances + ' instances'"></span>
+                                            <span class="px-1 rounded text-xs"
+                                                  :class="{
+                                                              'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': day.trend === 'increasing',
+                                                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': day.trend === 'decreasing',
+                                                              'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400': day.trend === 'stable'
+                                                          }"
+                                                  x-text="day.trend"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Duration Prediction Tool -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-4"
+             x-intersect.once="!durationPredictions && !durationPredictionsLoading && !durationPredictionsLoaded && loadAllDurationPredictions()">
+            <div class="flex items-center justify-between mb-3">
+                <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                    <i data-lucide="timer" class="mr-2 h-4 w-4 text-green-600"></i>
+                    Process Duration Analysis
+                </div>
+                <div class="flex items-center space-x-2">
+                            <span class="group relative">
+                                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                <span class="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                    ML-powered prediction using Random Forest. Trained on historical patterns including time-of-day and day-of-week factors. Shows all processes sorted by longest predicted duration.
+                                </span>
+                            </span>
+                    <button @click="loadAllDurationPredictions()"
+                            :disabled="durationPredictionsLoading"
+                            class="inline-flex items-center px-3 py-1.5 border border-green-300 dark:border-green-600 text-xs font-medium rounded-md text-green-700 dark:text-green-300 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/30 disabled:opacity-50">
+                        <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                           :class="{ 'animate-spin': durationPredictionsLoading }"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+
+            <!-- Loading State -->
+            <template x-if="durationPredictionsLoading">
+                <div class="flex flex-col items-center justify-center py-8">
+                    <div class="loader mb-2"></div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Analyzing process
+                        patterns...</p>
+                </div>
+            </template>
+
+            <!-- Results Table -->
+            <template x-if="durationPredictions && !durationPredictionsLoading">
+                <div class="mt-3">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Process
+                                </th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Predicted
+                                </th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    P50
+                                </th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    P95
+                                </th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Confidence
+                                </th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Instances
+                                </th>
+                            </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            <template x-for="(pred, index) in durationPredictions.slice(0, 20)"
+                                      :key="pred.process_key">
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100"
+                                        :title="pred.process_key">
+                                            <span class="truncate max-w-xs inline-block"
+                                                  x-text="pred.process_key"></span>
+                                    </td>
+                                    <td class="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                                    <span class="font-bold text-green-600 dark:text-green-400"
+                                                          x-text="pred.predicted_duration_ms != null ? formatDuration(pred.predicted_duration_ms) : 'N/A'"></span>
+                                    </td>
+                                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 text-right"
+                                        x-text="pred.percentiles?.p50_ms != null ? formatDuration(pred.percentiles.p50_ms) : '-'"></td>
+                                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 text-right"
+                                        x-text="pred.percentiles?.p95_ms != null ? formatDuration(pred.percentiles.p95_ms) : '-'"></td>
+                                    <td class="px-3 py-2 whitespace-nowrap text-center">
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                                          :class="{
+                                                              'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': pred.confidence_pct >= 80,
+                                                              'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': pred.confidence_pct >= 60 && pred.confidence_pct < 80,
+                                                              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': pred.confidence_pct < 60
+                                                          }"
+                                                          x-text="pred.confidence_pct ? pred.confidence_pct + '%' : 'N/A'"></span>
+                                    </td>
+                                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center"
+                                        x-text="pred.instance_count || 0"></td>
+                                </tr>
+                            </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <template x-if="durationPredictions.length > 20">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                            Showing top 20 of <span x-text="durationPredictions.length"></span>
+                            processes
+                        </p>
+                    </template>
+                    <template x-if="durationPredictions.length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No
+                            process
+                            predictions
+                            available</p>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
+
+
+    <!-- NEW: Activity Bottleneck Analysis Section -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-6"
+         x-intersect.once="!activityBottlenecks && !activityBottlenecksLoading && loadActivityBottlenecks()">
+        <div class="flex items-center justify-between mb-4">
+            <div class="font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                <i data-lucide="zap"
+                   class="mr-2 h-5 w-5 text-orange-600 dark:text-orange-400"></i>
+                <span>Activity Bottleneck Analysis</span>
+                <span class="group relative ml-2">
+                                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                    Identifies the slowest activities across business-critical processes with concrete ROI calculations. Shows which activities consume the most time and estimates potential savings from optimization.
+                                </span>
+                            </span>
+                <span class="ml-2 text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full font-semibold">
+                                TOP OPTIMIZATION TARGETS
+                            </span>
+            </div>
+            <button @click="loadActivityBottlenecks()"
+                    :disabled="activityBottlenecksLoading"
+                    class="inline-flex items-center px-4 py-2 border border-orange-300 dark:border-orange-600 shadow-sm text-sm font-medium rounded-md text-orange-700 dark:text-orange-300 bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/30 disabled:opacity-50">
+                <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"
+                   :class="{ 'animate-spin': activityBottlenecksLoading }"></i>
+                <span x-text="activityBottlenecksLoading ? 'Loading...' : 'Refresh'"></span>
+            </button>
+        </div>
+
+        <template x-if="activityBottlenecksLoading">
+            <div class="flex flex-col items-center justify-center py-8">
+                <div class="loader mb-2"></div>
+                <p class="text-xs text-gray-600 dark:text-gray-400">Analyzing activity
+                    bottlenecks...</p>
+            </div>
+        </template>
+
+        <template x-if="activityBottlenecks && !activityBottlenecksLoading">
+            <div>
+                <div class="mb-4 p-3 bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                <span x-text="activityBottlenecks.count || 0"></span> Activities
+                                Analyzed
+                            </p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                Total potential savings:
+                                <strong class="text-green-600 dark:text-green-400"
+                                        x-text="(activityBottlenecks.activities?.reduce((sum, a) => sum + (a.potential_savings_hours || 0), 0) || 0).toFixed(0) + ' hours'"></strong>
+                                (10% improvement across all)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-900/50">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                #
+                            </th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Activity
+                            </th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Type
+                            </th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Executions
+                            </th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Avg Duration
+                            </th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                P95
+                            </th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Stability
+                            </th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-yellow-50 dark:bg-yellow-900/20">
+                                💡 Savings (10%)
+                            </th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Sample
+                            </th>
+                        </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        <template
+                                x-for="(activity, idx) in (activityBottlenecks.activities || []).slice(0, 15)"
+                                :key="idx">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                <td class="px-3 py-3 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-gray-100"
+                                    x-text="idx + 1"></td>
+                                <td class="px-3 py-3">
+                                    <div class="text-sm">
+                                        <div class="font-medium text-gray-900 dark:text-gray-100"
+                                             x-text="activity.process_key"></div>
+                                        <div class="text-xs text-gray-600 dark:text-gray-400"
+                                             x-text="activity.activity_name"></div>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-3 whitespace-nowrap">
+                                                    <span class="px-2 py-1 text-xs rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                                                          x-text="activity.activity_type"></span>
+                                </td>
+                                <td class="px-3 py-3 whitespace-nowrap text-sm text-right text-gray-900 dark:text-gray-100"
+                                    x-text="activity.execution_count?.toLocaleString()"></td>
+                                <td class="px-3 py-3 whitespace-nowrap text-sm text-right text-gray-900 dark:text-gray-100"
+                                    x-text="formatDuration(activity.avg_duration_s * 1000)"></td>
+                                <td class="px-3 py-3 whitespace-nowrap text-sm text-right text-gray-900 dark:text-gray-100"
+                                    x-text="formatDuration(activity.p95_duration_s * 1000)"></td>
+                                <td class="px-3 py-3 whitespace-nowrap text-center">
+                                                    <span class="px-2 py-1 text-xs rounded-full font-semibold text-gray-700 dark:text-gray-300"
+                                                          :class="{
+                                                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': activity.stability === 'Stable',
+                                                              'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400': activity.stability === 'Moderate',
+                                                              'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': activity.stability === 'Variable'
+                                                          }"
+                                                          x-text="activity.stability"></span>
+                                </td>
+                                <td class="px-3 py-3 whitespace-nowrap text-right bg-yellow-50 dark:bg-yellow-900/20">
+                                    <div class="text-sm font-bold text-green-600 dark:text-green-400"
+                                         x-text="(activity.potential_savings_hours || 0).toFixed(0) + 'h'"></div>
+                                    <div class="text-xs text-gray-600 dark:text-gray-400"
+                                         x-text="'of ' + (activity.total_time_hours || 0).toFixed(0) + 'h total'"></div>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <div class="text-xs">
+                                        <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs text-gray-900 dark:text-gray-100"
+                                              x-text="(activity.sample_instance_id || 'N/A').substring(0, 50)"></code>
+                                        <div class="text-gray-600 dark:text-gray-400 mt-1"
+                                             x-text="activity.sample_business_key ? 'BKey: ' + activity.sample_business_key : ''"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </template>
+    </div>
+</div> <!-- End Advanced ML Features Container -->

@@ -1,0 +1,286 @@
+<div x-show="activeTab === 'issues'" x-transition>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Stuck Processes -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+             x-intersect.once="!stuckProcesses && !stuckProcessesLoading && loadStuckProcesses()">
+            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                <div class="flex items-center">
+                    <i data-lucide="pause-circle" class="mr-2 h-4 w-4 text-yellow-600"></i>
+                    <span>Stuck Process Instances</span>
+                    <span class="group relative ml-2">
+                                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                    Running instances that exceed P95 threshold by 1.5x-3x. Critical = 3x P95, Warning = 2x P95. Shows business keys for investigation.
+                                </span>
+                            </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <template x-if="stuckProcesses">
+                                    <span class="text-xs"
+                                          :class="{
+                                              'text-red-600': stuckProcesses.status_counts?.critical > 0,
+                                              'text-yellow-600': stuckProcesses.status_counts?.warning > 0,
+                                              'text-gray-500': !stuckProcesses.status_counts?.critical && !stuckProcesses.status_counts?.warning
+                                          }"
+                                          x-text="`${stuckProcesses.total_stuck || 0} stuck`"></span>
+                    </template>
+                    <button @click="loadStuckProcesses()"
+                            :disabled="stuckProcessesLoading"
+                            class="inline-flex items-center px-3 py-1.5 border border-yellow-300 dark:border-yellow-600 text-xs font-medium rounded-md text-yellow-700 dark:text-yellow-300 bg-white dark:bg-gray-800 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 disabled:opacity-50">
+                        <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                           :class="{ 'animate-spin': stuckProcessesLoading }"></i>
+                        <span x-text="stuckProcessesLoading ? 'Loading...' : 'Refresh'"></span>
+                    </button>
+                </div>
+            </div>
+            <template x-if="stuckProcessesLoading">
+                <div class="text-center py-8">
+                    <div class="animate-spin h-8 w-8 border-4 border-yellow-500 border-t-transparent rounded-full mx-auto"></div>
+                    <p class="text-sm text-gray-500 mt-2">Analyzing running instances...</p>
+                </div>
+            </template>
+            <template x-if="stuckProcesses && !stuckProcessesLoading">
+                <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                    <template x-if="stuckProcesses.stuck_processes?.length > 0">
+                        <template x-for="proc in stuckProcesses.stuck_processes.slice(0, 10)"
+                                  :key="proc.instance_id">
+                            <div class="p-3 rounded border-l-4"
+                                 :class="{
+                                             'bg-red-50 dark:bg-red-900/20 border-l-red-500': proc.status === 'critical',
+                                             'bg-yellow-50 dark:bg-yellow-900/20 border-l-yellow-500': proc.status === 'warning',
+                                             'bg-blue-50 dark:bg-blue-900/20 border-l-blue-500': proc.status === 'attention'
+                                         }">
+                                <div class="flex items-start justify-between mb-1">
+                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1"
+                                       :title="proc.process_key"
+                                       x-text="proc.process_key"></p>
+                                    <span class="text-xs px-2 py-0.5 rounded-full font-semibold ml-2"
+                                          :class="{
+                                                      'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': proc.status === 'critical',
+                                                      'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400': proc.status === 'warning',
+                                                      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': proc.status === 'attention'
+                                                  }"
+                                          x-text="proc.status.toUpperCase()"></span>
+                                </div>
+                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                    Running: <span class="font-semibold"
+                                                   x-text="formatDuration(proc.stuck_for_seconds * 1000)"></span>
+                                    <template x-if="proc.expected_p95_hours">
+                                        · P95: <span
+                                            x-text="proc.expected_p95_hours.toFixed(1) + 'h'"></span>
+                                    </template>
+                                </p>
+                                <div class="flex items-center justify-between text-xs">
+                                    <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded truncate max-w-[180px]"
+                                          :title="proc.business_key"
+                                          x-text="proc.business_key || 'N/A'"></code>
+                                    <button @click="navigator.clipboard.writeText(proc.instance_id)"
+                                            class="text-blue-600 dark:text-blue-400 hover:underline"
+                                            :title="proc.instance_id">
+                                        Copy ID
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </template>
+                    <template x-if="!stuckProcesses.stuck_processes?.length">
+                        <div class="text-center py-8">
+                            <i data-lucide="check-circle"
+                               class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
+                            <p class="text-sm font-semibold text-green-600 dark:text-green-400">All
+                                Clear!</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">No stuck processes
+                                detected</p>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Outlier Patterns & Extreme Variability -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <!-- High Outlier Processes (NEW) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+             x-intersect.once="!outlierPatterns && !outlierPatternsLoading && loadOutlierPatterns()">
+            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                <div class="flex items-center">
+                    <i data-lucide="alert-octagon" class="mr-2 h-4 w-4 text-red-600"></i>
+                    <span>High Outlier Processes</span>
+                    <span class="group relative ml-2">
+                                    <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        Processes with >15% outliers using IQR-based detection (3×IQR for extreme). Shows sample outlier instances for investigation.
+                                    </span>
+                                </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <template x-if="outlierPatterns">
+                                    <span class="text-xs text-gray-500"
+                                          x-text="`${outlierPatterns.high_outlier_count || 0} processes`"></span>
+                    </template>
+                    <button @click="loadOutlierPatterns()"
+                            :disabled="outlierPatternsLoading"
+                            class="inline-flex items-center px-3 py-1.5 border border-red-300 dark:border-red-600 text-xs font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50">
+                        <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                           :class="{ 'animate-spin': outlierPatternsLoading }"></i>
+                        <span x-text="outlierPatternsLoading ? 'Loading...' : 'Refresh'"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading state -->
+            <template x-if="outlierPatternsLoading">
+                <div class="text-center py-8">
+                    <div class="animate-spin h-8 w-8 border-4 border-red-500 border-t-transparent rounded-full mx-auto"></div>
+                    <p class="text-sm text-gray-500 mt-2">Loading outlier patterns...</p>
+                </div>
+            </template>
+
+            <!-- Results -->
+            <template x-if="outlierPatterns && !outlierPatternsLoading">
+                <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                    <template x-if="outlierPatterns.high_outlier_processes?.length > 0">
+                        <template x-for="proc in outlierPatterns.high_outlier_processes.slice(0, 10)"
+                                  :key="proc.process_key">
+                            <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded border-l-2 border-l-red-500 cursor-pointer hover:shadow-md transition-shadow"
+                                 @click="selectedOutlierProcess = proc; $refs.outlierModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
+                                <div class="flex items-start justify-between mb-1">
+                                    <div class="flex-1">
+                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+                                           :title="proc.process_key"
+                                           x-text="proc.process_key"></p>
+                                        <div class="flex items-center gap-2 mt-1">
+                                                    <span class="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded"
+                                                          x-text="proc.outlier_percentage.toFixed(1) + '% outliers'"></span>
+                                            <template x-if="proc.has_extreme_outliers">
+                                                        <span class="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded">
+                                                            <span x-text="proc.extreme_outlier_count"></span> extreme
+                                                        </span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-bold text-red-600 dark:text-red-400 ml-2"
+                                          x-text="proc.outlier_count"></span>
+                                </div>
+                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                    Normal range: <span x-text="formatDuration(proc.q1_seconds * 1000)"></span>
+                                    -
+                                    <span x-text="formatDuration(proc.upper_bound_seconds * 1000)"></span>
+                                </p>
+                                <template
+                                        x-if="proc.sample_outlier_instances && proc.sample_outlier_instances.length > 0">
+                                    <p class="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">
+                                        <span x-text="proc.sample_outlier_instances.length"></span> sample(s) •
+                                        Click for details →
+                                    </p>
+                                </template>
+                            </div>
+                        </template>
+                    </template>
+                    <template x-if="!outlierPatterns?.high_outlier_processes?.length">
+                        <div class="text-center py-8">
+                            <i data-lucide="check-circle"
+                               class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
+                            <p class="text-sm font-semibold text-green-600 dark:text-green-400">Consistent
+                                Performance!</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">No processes with excessive
+                                outliers detected</p>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- Extreme Variability -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
+             x-intersect.once="!extremeVariability && !extremeVariabilityLoading && loadExtremeVariability()">
+            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                <div class="flex items-center">
+                    <i data-lucide="activity" class="mr-2 h-4 w-4 text-red-600"></i>
+                    <span>Extreme Variability</span>
+                    <span class="group relative ml-2">
+                                <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                    P95/Median ratio analysis. Extreme = >100x, High = >50x, Medium = >20x. Do NOT use extreme processes for SLA-critical workflows.
+                                </span>
+                            </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <template x-if="extremeVariability">
+                                    <span class="text-xs text-red-600 dark:text-red-400"
+                                          x-text="`${extremeVariability.extreme_count || 0} unpredictable`"></span>
+                    </template>
+                    <button @click="loadExtremeVariability()"
+                            :disabled="extremeVariabilityLoading"
+                            class="inline-flex items-center px-3 py-1.5 border border-red-300 dark:border-red-600 text-xs font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50">
+                        <i data-lucide="refresh-cw" class="h-3 w-3 mr-1"
+                           :class="{ 'animate-spin': extremeVariabilityLoading }"></i>
+                        <span x-text="extremeVariabilityLoading ? 'Loading...' : 'Refresh'"></span>
+                    </button>
+                </div>
+            </div>
+            <template x-if="extremeVariabilityLoading">
+                <div class="text-center py-8">
+                    <div class="animate-spin h-8 w-8 border-4 border-red-500 border-t-transparent rounded-full mx-auto"></div>
+                    <p class="text-sm text-gray-500 mt-2">Analyzing variability...</p>
+                </div>
+            </template>
+            <template x-if="extremeVariability && !extremeVariabilityLoading">
+                <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                    <template x-if="extremeVariability.extreme_processes?.length > 0">
+                        <template x-for="proc in extremeVariability.extreme_processes.slice(0, 10)"
+                                  :key="proc.process_key">
+                            <div class="p-3 rounded border-l-4 cursor-pointer hover:shadow-md transition-shadow"
+                                 :class="{
+                                             'bg-red-50 dark:bg-red-900/20 border-l-red-500': proc.severity === 'extreme',
+                                             'bg-orange-50 dark:bg-orange-900/20 border-l-orange-500': proc.severity === 'high',
+                                             'bg-yellow-50 dark:bg-yellow-900/20 border-l-yellow-500': proc.severity === 'medium'
+                                         }"
+                                 @click="selectedVariabilityAlert = proc; $refs.variabilityModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
+                                <div class="flex items-start justify-between mb-1">
+                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1"
+                                       :title="proc.process_key"
+                                       x-text="proc.process_key"></p>
+                                    <span class="text-lg font-bold ml-2"
+                                          :class="{
+                                                      'text-red-600 dark:text-red-400': proc.severity === 'extreme',
+                                                      'text-orange-600 dark:text-orange-400': proc.severity === 'high',
+                                                      'text-yellow-600 dark:text-yellow-400': proc.severity === 'medium'
+                                                  }"
+                                          x-text="proc.p95_median_ratio.toFixed(0) + 'x'"></span>
+                                </div>
+                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                    Median: <span
+                                        x-text="formatDuration(proc.median_seconds * 1000)"></span>
+                                    · P95: <span class="font-semibold text-red-600 dark:text-red-400"
+                                                 x-text="formatDuration(proc.p95_seconds * 1000)"></span>
+                                </p>
+                                <div class="flex items-center justify-between">
+                                            <span class="text-xs px-2 py-0.5 rounded-full"
+                                                  :class="{
+                                                      'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': proc.severity === 'extreme',
+                                                      'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400': proc.severity === 'high',
+                                                      'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400': proc.severity === 'medium'
+                                                  }"
+                                                  x-text="proc.severity.toUpperCase()"></span>
+                                    <span class="text-xs text-blue-600 dark:text-blue-400 font-medium">Click for details →</span>
+                                </div>
+                            </div>
+                        </template>
+                    </template>
+                    <template x-if="!extremeVariability.extreme_processes?.length">
+                        <div class="text-center py-8">
+                            <i data-lucide="check-circle"
+                               class="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-2"></i>
+                            <p class="text-sm font-semibold text-green-600 dark:text-green-400">Stable!</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">All processes have
+                                predictable
+                                execution times</p>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div> <!-- End grid for Issues -->
+</div>
