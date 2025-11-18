@@ -579,8 +579,19 @@
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100"
                                    x-text="node.node_name"></p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400"
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1"
                                    x-text="node.recommendation"></p>
+                                <div class="flex gap-3 text-xs text-gray-600 dark:text-gray-400">
+                                    <span x-show="node.cpu_load_pct !== undefined">
+                                        CPU: <strong x-text="node.cpu_load_pct.toFixed(1) + '%'"></strong>
+                                    </span>
+                                    <span x-show="node.heap_utilization_pct !== undefined">
+                                        Heap: <strong x-text="node.heap_utilization_pct.toFixed(1) + '%'"></strong>
+                                    </span>
+                                    <span x-show="node.gc_time_ms !== undefined">
+                                        GC: <strong x-text="node.gc_time_ms.toFixed(0) + 'ms'"></strong>
+                                    </span>
+                                </div>
                             </div>
                             <div class="ml-2 text-right">
                                         <span class="text-lg font-bold"
@@ -694,7 +705,7 @@
                 </div>
             </template>
             <template x-if="processCategories && !processCategoriesLoading">
-                <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                <div class="space-y-2 max-h-64 overflow-y-auto overflow-x-hidden custom-scrollbar">
                     <template
                             x-if="processCategories.category_distribution && Object.keys(processCategories.category_distribution).length > 0">
                         <template

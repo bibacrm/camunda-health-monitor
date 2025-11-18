@@ -70,12 +70,16 @@
                                             x-text="proc.expected_p95_hours.toFixed(1) + 'h'"></span>
                                     </template>
                                 </p>
-                                <div class="flex items-center justify-between text-xs">
-                                    <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded truncate max-w-[180px]"
-                                          :title="proc.business_key"
-                                          x-text="proc.business_key || 'N/A'"></code>
+                                <div class="flex items-center justify-between text-xs gap-2">
+                                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                                        <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded truncate max-w-[120px]"
+                                              :title="proc.business_key"
+                                              x-text="proc.business_key || 'N/A'"></code>
+                                        <code class="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono"
+                                              x-text="proc.instance_id"></code>
+                                    </div>
                                     <button @click="navigator.clipboard.writeText(proc.instance_id)"
-                                            class="text-blue-600 dark:text-blue-400 hover:underline"
+                                            class="text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0"
                                             :title="proc.instance_id">
                                         Copy ID
                                     </button>

@@ -1545,6 +1545,25 @@ class AIAnalytics:
                 context="Analyzing hourly load patterns"
             )
 
+            # Hourly heatmap by day of week
+            heatmap_query = f"""
+                SELECT 
+                    EXTRACT(DOW FROM start_time_) as day_of_week,
+                    EXTRACT(HOUR FROM start_time_) as hour_of_day,
+                    COUNT(*) as instance_count
+                FROM act_hi_procinst
+                WHERE start_time_ > NOW() - INTERVAL '{lookback_days} days'
+                  {process_filter}
+                GROUP BY EXTRACT(DOW FROM start_time_), EXTRACT(HOUR FROM start_time_)
+                ORDER BY day_of_week, hour_of_day
+            """
+
+            heatmap_results = safe_execute(
+                lambda: execute_query(heatmap_query),
+                default_value=[],
+                context="Analyzing hourly heatmap patterns"
+            )
+
             if not day_results:
                 return {
                     'daily_patterns': [],
@@ -1619,6 +1638,34 @@ class AIAnalytics:
                         'is_business_hours': is_business_hours
                     })
 
+            # Process heatmap data (hour x day matrix)
+            hourly_heatmap = []
+            day_names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+            # Create a map for quick lookup
+            heatmap_map = {}
+            max_count = 0
+            for row in heatmap_results:
+                day = int(row['day_of_week'])
+                hour = int(row['hour_of_day'])
+                count = int(row['instance_count'])
+                heatmap_map[(day, hour)] = count
+                if count > max_count:
+                    max_count = count
+
+            # Build complete heatmap matrix (all hours x all days)
+            for day in range(7):
+                for hour in range(24):
+                    count = heatmap_map.get((day, hour), 0)
+                    intensity = (count / max_count * 100) if max_count > 0 else 0
+                    hourly_heatmap.append({
+                        'day_of_week': day,
+                        'day_name': day_names[day],
+                        'hour': hour,
+                        'count': count,
+                        'intensity': round(intensity, 1)
+                    })
+
             # Business summary
             business_summary = {
                 'business_days': {
@@ -1645,6 +1692,7 @@ class AIAnalytics:
             return {
                 'daily_patterns': daily_patterns,
                 'hourly_patterns': hourly_patterns,
+                'hourly_heatmap': hourly_heatmap,
                 'business_summary': business_summary,
                 'analysis_window_days': lookback_days,
                 'message': f'Analyzed {len(daily_patterns)} days and {len(hourly_patterns)} hourly patterns'
@@ -1655,6 +1703,7 @@ class AIAnalytics:
             return {
                 'daily_patterns': [],
                 'hourly_patterns': [],
+                'hourly_heatmap': [],
                 'business_summary': {},
                 'error': str(e)
             }

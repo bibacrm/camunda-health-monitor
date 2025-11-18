@@ -310,6 +310,92 @@
                     </div>
                 </div>
 
+                <!-- Hourly Heatmap -->
+                <template x-if="weeklyLoadPatterns.hourly_heatmap && weeklyLoadPatterns.hourly_heatmap.length > 0">
+                    <div class="mb-4">
+                        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Hourly Load Heatmap</h4>
+                        <div class="overflow-x-auto">
+                            <div class="inline-block min-w-full">
+                                <!-- Hour labels -->
+                                <div class="flex mb-1">
+                                    <div class="w-20 flex-shrink-0"></div>
+                                    <div class="flex-1 flex">
+                                        <template x-for="hour in Array.from({length: 24}, (_, i) => i)" :key="'hour-' + hour">
+                                            <div class="flex-1 text-center text-xs text-gray-500 dark:text-gray-400"
+                                                 x-text="hour"></div>
+                                        </template>
+                                    </div>
+                                </div>
+                                <!-- Heatmap rows -->
+                                <template x-for="day in [0,1,2,3,4,5,6]" :key="'day-' + day">
+                                    <div class="flex mb-1">
+                                        <div class="w-20 flex-shrink-0 text-xs font-medium text-gray-700 dark:text-gray-300 flex items-center"
+                                             x-text="['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]"></div>
+                                        <div class="flex-1 flex gap-0.5">
+                                            <template x-for="hour in Array.from({length: 24}, (_, i) => i)" :key="'cell-' + day + '-' + hour">
+                                                <div class="flex-1 h-8 rounded cursor-pointer transition-all hover:scale-110 hover:z-10 relative group"
+                                                     :style="(() => {
+                                                         const cell = weeklyLoadPatterns.hourly_heatmap.find(c => c.day_of_week === day && c.hour === hour);
+                                                         const intensity = cell ? cell.intensity : 0;
+
+                                                         // Empty cells - almost invisible
+                                                         if (intensity === 0) return 'background-color: rgba(229, 231, 235, 0.02); border: 1px solid rgba(229, 231, 235, 0.05);';
+
+                                                         // Professional heatmap gradient: cyan → green → yellow → orange → red (no blue)
+                                                         let color;
+                                                         if (intensity <= 25) {
+                                                             // Cyan (0-25%)
+                                                             const blend = intensity / 25;
+                                                             color = `rgba(${Math.round(34 + blend * 45)}, ${Math.round(211 - blend * 14)}, ${Math.round(238 - blend * 144)}, ${0.5 + blend * 0.3})`;
+                                                         } else if (intensity <= 50) {
+                                                             // Green (25-50%)
+                                                             const blend = (intensity - 25) / 25;
+                                                             color = `rgba(${Math.round(34 + blend * 186)}, ${Math.round(197 - blend * 18)}, ${Math.round(94 - blend * 86)}, ${0.75 + blend * 0.15})`;
+                                                         } else if (intensity <= 75) {
+                                                             // Yellow (50-75%)
+                                                             const blend = (intensity - 50) / 25;
+                                                             color = `rgba(${Math.round(250 + blend * 1)}, ${Math.round(204 - blend * 58)}, ${Math.round(21 + blend * 39)}, ${0.85 + blend * 0.1})`;
+                                                         } else if (intensity <= 90) {
+                                                             // Orange (75-90%)
+                                                             const blend = (intensity - 75) / 15;
+                                                             color = `rgba(${Math.round(249 - blend * 20)}, ${Math.round(115 - blend * 47)}, ${Math.round(22 - blend * 14)}, ${0.92 + blend * 0.05})`;
+                                                         } else {
+                                                             // Red (90-100%)
+                                                             const blend = (intensity - 90) / 10;
+                                                             color = `rgba(${Math.round(220 - blend * 30)}, ${Math.round(38 + blend * 10)}, ${Math.round(38 + blend * 10)}, ${0.95 + blend * 0.05})`;
+                                                         }
+
+                                                         return `background-color: ${color}; border: 1px solid rgba(0, 0, 0, 0.08);`;
+                                                     })()">
+                                                    <!-- Tooltip - directly above cell -->
+                                                    <div class="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-0 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap z-50"
+                                                         x-text="(() => {
+                                                             const cell = weeklyLoadPatterns.hourly_heatmap.find(c => c.day_of_week === day && c.hour === hour);
+                                                             return cell ? `${cell.count} instances` : '0 instances';
+                                                         })()"></div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                                <!-- Legend -->
+                                <div class="flex items-center justify-center gap-4 mt-3 text-xs text-gray-600 dark:text-gray-400">
+                                    <div class="flex items-center gap-2">
+                                        <span>Low</span>
+                                        <div class="w-32 h-4 rounded border border-gray-300 dark:border-gray-600"
+                                             style="background: linear-gradient(to right, rgb(34, 211, 238), rgb(34, 197, 94), rgb(250, 204, 21), rgb(249, 115, 22), rgb(220, 38, 38));"></div>
+                                        <span>High</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-4 h-4 rounded bg-gray-100 opacity-5 border border-gray-200"></div>
+                                        <span>No activity</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
                 <!-- Peak Hours -->
                 <template
                         x-if="weeklyLoadPatterns.business_summary?.peak_hours && weeklyLoadPatterns.business_summary.peak_hours.length > 0">
