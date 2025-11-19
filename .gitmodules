@@ -1,0 +1,3 @@
+[submodule "enterprise"]
+	path = enterprise
+	url = https://github.com/bibacrm/camunda-health-monitor-enterprise.git

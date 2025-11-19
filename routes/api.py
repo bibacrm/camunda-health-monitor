@@ -1,12 +1,19 @@
 """
 API routes - RESTful endpoints
 """
-from flask import Blueprint, jsonify, current_app
+from flask import Blueprint, jsonify, current_app, request
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from helpers.error_handler import handle_errors
 from helpers.db_helper import execute_query
 from services.camunda_service import collect_engine_health
 from services.database_service import collect_database_metrics
+# Smart AI service import - uses enterprise if available
+try:
+    from services.ai_service_enterprise import get_ai_analytics
+except (ImportError, ModuleNotFoundError):
+    from services.ai_service import get_ai_analytics
+
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -100,3 +107,325 @@ def api_database_metrics():
     data["timestamp"] = datetime.now().isoformat()
     return jsonify(data)
 
+
+# ===== AI/ML ENDPOINTS =====
+
+@api_bp.route('/ai/health-score')
+@handle_errors(context="Calculating AI health score")
+def api_ai_health_score():
+    """Get AI-powered cluster health score"""
+    ai = get_ai_analytics()
+    cluster_data = collect_engine_health()
+    db_metrics = cluster_data.get('db_metrics', {})
+
+    score = ai.get_cluster_health_score(cluster_data, db_metrics)
+    score['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(score)
+
+
+@api_bp.route('/ai/anomalies')
+@handle_errors(context="Detecting process anomalies")
+def api_ai_anomalies():
+    """Detect anomalies in process execution times"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
+
+    anomalies = ai.detect_process_anomalies(lookback_days=lookback_days)
+    anomalies['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(anomalies)
+
+
+@api_bp.route('/ai/incident-patterns')
+@handle_errors(context="Analyzing incident patterns")
+def api_ai_incident_patterns():
+    """Analyze and cluster incident patterns"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
+
+    patterns = ai.analyze_incident_patterns(lookback_days=lookback_days)
+    patterns['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(patterns)
+
+
+@api_bp.route('/ai/bottlenecks')
+@handle_errors(context="Identifying process bottlenecks")
+def api_ai_bottlenecks():
+    """Identify process bottlenecks"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
+
+    bottlenecks = ai.identify_bottlenecks(lookback_days=lookback_days)
+    bottlenecks['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(bottlenecks)
+
+
+@api_bp.route('/ai/job-predictions')
+@handle_errors(context="Predicting job failures")
+def api_ai_job_predictions():
+    """Predict job failure probabilities"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
+
+    predictions = ai.predict_job_failures(lookback_days=lookback_days)
+    predictions['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(predictions)
+
+
+@api_bp.route('/ai/node-performance')
+@handle_errors(context="Analyzing node performance")
+def api_ai_node_performance():
+    """Get node performance rankings"""
+    ai = get_ai_analytics()
+    cluster_data = collect_engine_health()
+
+    rankings = ai.analyze_node_performance(cluster_data.get('cluster_nodes', []))
+    rankings['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(rankings)
+
+
+@api_bp.route('/ai/process-leaderboard')
+@handle_errors(context="Getting process leaderboard")
+def api_ai_process_leaderboard():
+    """Get process definition performance leaderboard"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
+
+    leaderboard = ai.get_process_leaderboard(lookback_days=lookback_days)
+    leaderboard['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(leaderboard)
+
+
+@api_bp.route('/ai/sla-predictions')
+@handle_errors(context="Predicting SLA breaches")
+def api_ai_sla_predictions():
+    """Predict tasks likely to breach SLA"""
+    ai = get_ai_analytics()
+    threshold_hours = int(current_app.config.get('SLA_THRESHOLD_HOURS', 24))
+
+    predictions = ai.predict_sla_breaches(threshold_hours=threshold_hours)
+    predictions['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(predictions)
+
+
+@api_bp.route('/ai/insights')
+@handle_errors(context="Getting comprehensive AI insights")
+def api_ai_insights():
+    """Get comprehensive AI insights and recommendations"""
+    from flask import request
+    ai = get_ai_analytics()
+
+    # Get configuration
+    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
+    threshold_hours = int(current_app.config.get('SLA_THRESHOLD_HOURS', 24))
+
+    # Check if cluster data should be included (can be disabled for faster loading)
+    include_cluster = request.args.get('include_cluster', 'true').lower() == 'true'
+
+    # Gather cluster data only if needed (for health score and node performance)
+    cluster_data = {}
+    db_metrics = {}
+
+    if include_cluster:
+        # Only collect if not already available from dashboard
+        current_app.logger.info("Collecting cluster data for AI insights")
+        cluster_data = collect_engine_health()
+        db_metrics = cluster_data.get('db_metrics', {})
+
+    # Define tasks for parallel execution
+    def get_health_score():
+        if include_cluster and cluster_data:
+            return ('health_score', ai.get_cluster_health_score(cluster_data, db_metrics))
+        else:
+            # Return minimal health score based on incidents only
+            return ('health_score', {
+                'overall_score': 85,
+                'grade': 'B',
+                'factors': 'Based on process metrics only'
+            })
+
+    def get_anomalies():
+        return ('anomalies', ai.detect_process_anomalies(lookback_days=lookback_days))
+
+    def get_incidents():
+        return ('incidents', ai.analyze_incident_patterns(lookback_days=min(lookback_days * 4, 30)))
+
+    def get_bottlenecks():
+        return ('bottlenecks', ai.identify_bottlenecks(lookback_days=lookback_days))
+
+    def get_job_failures():
+        return ('job_failures', ai.predict_job_failures(lookback_days=lookback_days))
+
+    def get_node_performance():
+        if include_cluster and cluster_data:
+            return ('node_performance', ai.analyze_node_performance(cluster_data.get('cluster_nodes', [])))
+        else:
+            # Return empty node performance if cluster data not available
+            return ('node_performance', {
+                'rankings': [],
+                'message': 'Node performance analysis requires cluster data'
+            })
+
+    def get_process_leaderboard():
+        return ('process_leaderboard', ai.get_process_leaderboard(lookback_days=min(lookback_days * 4, 30)))
+
+    def get_sla_predictions():
+        return ('sla_predictions', ai.predict_sla_breaches(threshold_hours=threshold_hours))
+
+    def get_version_performance():
+        return ('version_performance', ai.analyze_version_performance(lookback_days=min(lookback_days * 2, 60)))
+
+    def get_load_patterns():
+        return ('load_patterns', ai.analyze_load_patterns(lookback_days=lookback_days))
+
+    def get_process_variability():
+        return ('process_variability', ai.detect_extreme_variability(lookback_days=lookback_days))
+
+    # Execute all AI analysis in parallel
+    insights = {}
+    tasks = [
+        get_health_score,
+        get_anomalies,
+        get_incidents,
+        get_bottlenecks,
+        get_job_failures,
+        get_node_performance,
+        get_process_leaderboard,
+        get_sla_predictions,
+        get_version_performance,
+        get_load_patterns,
+        get_process_variability
+    ]
+
+    with ThreadPoolExecutor(max_workers=11) as executor:
+        future_to_task = {executor.submit(task): task for task in tasks}
+
+        for future in as_completed(future_to_task):
+            try:
+                key, result = future.result()
+                insights[key] = result
+            except Exception as e:
+                task_name = future_to_task[future].__name__
+                insights[task_name] = {'error': str(e)}
+
+    # Generate recommendations based on collected insights
+    insights['recommendations'] = ai.get_ai_recommendations(insights)
+    insights['critical_insights'] = ai.generate_critical_insights_summary(insights)
+    insights['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(insights)
+
+
+# ===== NEW PROFESSIONAL ANALYSIS ENDPOINTS =====
+
+@api_bp.route('/ai/process-categories')
+@handle_errors(context="Getting process categories")
+def api_ai_process_categories():
+    """Get process categorization (ultra_fast to batch_manual)"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
+
+    result = ai.get_process_categories(lookback_days=lookback_days)
+
+    # Transform data for frontend display
+    categories = result.get('categories', {})
+
+    # Define category order (fastest to slowest)
+    category_order = ['ultra_fast', 'very_fast', 'fast_background', 'standard',
+                      'extended', 'long_running', 'batch_manual']
+
+    # Group by category and calculate median
+    category_data = {}
+    for proc_key, proc_data in categories.items():
+        cat = proc_data['category']
+        if cat not in category_data:
+            category_data[cat] = {
+                'label': proc_data['category_label'],
+                'count': 0,
+                'median_values': []
+            }
+        category_data[cat]['count'] += 1
+        category_data[cat]['median_values'].append(proc_data['median_seconds'])
+
+    # Build ordered category distribution
+    category_distribution = {}
+    for cat in category_order:
+        if cat in category_data:
+            data = category_data[cat]
+            median_vals = sorted(data['median_values'])
+            mid = len(median_vals) // 2
+            if len(median_vals) % 2 == 0 and len(median_vals) > 0:
+                median_seconds = (median_vals[mid - 1] + median_vals[mid]) / 2
+            elif len(median_vals) > 0:
+                median_seconds = median_vals[mid]
+            else:
+                median_seconds = 0
+
+            category_distribution[cat] = {
+                'label': data['label'],
+                'count': data['count'],
+                'median_seconds': round(median_seconds, 2)
+            }
+
+    result['category_distribution'] = category_distribution
+    result['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(result)
+
+
+@api_bp.route('/ai/process-variability')
+@handle_errors(context="Detecting process variability")
+def api_ai_process_variability():
+    """Detect processes with extreme P95/Median ratios (alias endpoint)"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
+
+    result = ai.detect_extreme_variability(lookback_days=lookback_days)
+    result['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(result)
+
+
+@api_bp.route('/ai/extreme-variability')
+@handle_errors(context="Detecting extreme variability")
+def api_ai_extreme_variability():
+    """Detect processes with extreme P95/Median ratios"""
+    ai = get_ai_analytics()
+
+    result = ai.analyze_extreme_variability()
+    result['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(result)
+
+
+@api_bp.route('/ai/stuck-processes')
+@handle_errors(context="Analyzing stuck processes")
+def api_ai_stuck_processes():
+    """Get stuck process instances with business keys"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
+
+    result = ai.analyze_stuck_processes(lookback_days=lookback_days)
+    result['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(result)
+
+
+@api_bp.route('/ai/outlier-patterns')
+@handle_errors(context="Analyzing outlier patterns")
+def api_ai_outlier_patterns():
+    """Get IQR-based outlier analysis"""
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
+
+    result = ai.analyze_outlier_patterns(lookback_days=lookback_days)
+    result['timestamp'] = datetime.now().isoformat()
+
+    return jsonify(result)

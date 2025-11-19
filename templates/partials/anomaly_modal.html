@@ -1,0 +1,216 @@
+<!-- Anomaly Details Modal -->
+<div x-ref="anomalyModal"
+     class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+     @click.self="$refs.anomalyModal.classList.add('hidden')">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[85vh] overflow-hidden">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 z-10">
+            <div class="flex items-center">
+                <i data-lucide="alert-triangle"
+                   class="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2"></i>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Performance Anomalies
+                    Detected</h3>
+            </div>
+            <button @click="$refs.anomalyModal.classList.add('hidden')"
+                    class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <i data-lucide="x" class="h-5 w-5"></i>
+            </button>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+            <template x-if="aiData.anomalies && aiData.anomalies.anomalies?.length > 0">
+                <div class="space-y-6">
+                    <template x-for="(anomaly, idx) in aiData.anomalies.anomalies" :key="idx">
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                            <!-- Header -->
+                            <div class="p-4 border-l-4"
+                                 :class="{
+                                 'bg-red-50 dark:bg-red-900/20 border-l-red-500': anomaly.severity === 'critical',
+                                 'bg-orange-50 dark:bg-orange-900/20 border-l-orange-500': anomaly.severity === 'high',
+                                 'bg-yellow-50 dark:bg-yellow-900/20 border-l-yellow-500': anomaly.severity === 'medium',
+                                 'bg-blue-50 dark:bg-blue-900/20 border-l-blue-500': anomaly.severity === 'low'
+                             }">
+                                <div class="flex items-start justify-between mb-2">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <h4 class="text-base font-semibold text-gray-900 dark:text-gray-100"
+                                                x-text="anomaly.process_key"></h4>
+                                            <span class="text-xs px-2 py-1 rounded-full font-semibold uppercase"
+                                                  :class="{
+                                                  'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400': anomaly.severity === 'critical',
+                                                  'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400': anomaly.severity === 'high',
+                                                  'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400': anomaly.severity === 'medium',
+                                                  'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400': anomaly.severity === 'low'
+                                              }"
+                                                  x-text="anomaly.severity"></span>
+                                        </div>
+                                        <p class="text-sm text-gray-600 dark:text-gray-400"
+                                           x-text="anomaly.reason"></p>
+                                    </div>
+                                    <div class="ml-4 text-right">
+                                    <span class="text-2xl font-bold"
+                                          :class="{
+                                              'text-red-600 dark:text-red-400': anomaly.severity === 'critical',
+                                              'text-orange-600 dark:text-orange-400': anomaly.severity === 'high',
+                                              'text-yellow-600 dark:text-yellow-400': anomaly.severity === 'medium',
+                                              'text-blue-600 dark:text-blue-400': anomaly.severity === 'low'
+                                          }"
+                                          x-text="`Z: ${anomaly.z_score?.toFixed(1)}`"></span>
+                                        <p class="text-xs text-gray-500">Z-score</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Metrics Grid -->
+                            <div class="p-4 bg-white dark:bg-gray-800">
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                                    <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Current
+                                            Avg</p>
+                                        <p class="text-lg font-bold text-gray-900 dark:text-gray-100"
+                                           x-text="formatDuration(anomaly.current_avg_ms)"></p>
+                                    </div>
+                                    <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                            Expected
+                                            Avg</p>
+                                        <p class="text-lg font-bold text-gray-900 dark:text-gray-100"
+                                           x-text="formatDuration(anomaly.expected_avg_ms)"></p>
+                                    </div>
+                                    <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                            Deviation</p>
+                                        <p class="text-lg font-bold"
+                                           :class="Math.abs(anomaly.deviation_pct) > 50 ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'"
+                                           x-text="(anomaly.deviation_pct > 0 ? '+' : '') + anomaly.deviation_pct?.toFixed(0) + '%'"></p>
+                                    </div>
+                                    <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Max
+                                            Duration</p>
+                                        <p class="text-lg font-bold text-gray-900 dark:text-gray-100"
+                                           x-text="formatDuration(anomaly.max_duration_ms)"></p>
+                                    </div>
+                                </div>
+
+                                <!-- Additional Stats -->
+                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                    <div class="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400">
+                                            Instances</p>
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100"
+                                           x-text="anomaly.instances_analyzed"></p>
+                                    </div>
+                                    <div class="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400">P95</p>
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100"
+                                           x-text="formatDuration(anomaly.p95_ms)"></p>
+                                    </div>
+                                    <div class="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                                        <p class="text-xs text-gray-600 dark:text-gray-400">
+                                            Stability</p>
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100"
+                                           x-text="anomaly.stability || 'N/A'"></p>
+                                    </div>
+                                </div>
+
+                                <!-- Recommendation -->
+                                <template x-if="anomaly.recommendation">
+                                    <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <p class="text-sm text-blue-700 dark:text-blue-300">
+                                            <i data-lucide="lightbulb" class="inline h-4 w-4 mr-1"></i>
+                                            <strong>Recommendation:</strong> <span
+                                                x-text="anomaly.recommendation"></span>
+                                        </p>
+                                    </div>
+                                </template>
+
+                                <!-- Sample Instances -->
+                                <template
+                                        x-if="anomaly.sample_instances && anomaly.sample_instances.length > 0">
+                                    <div>
+                                        <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                            Slowest Instances (<span
+                                                x-text="anomaly.sample_instances.length"></span>)
+                                        </h5>
+                                        <div class="space-y-3">
+                                            <template x-for="(sample, sIdx) in anomaly.sample_instances"
+                                                      :key="sample.instance_id">
+                                                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                                    <div class="flex items-center justify-between mb-2">
+                                                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                                        Instance #<span x-text="sIdx + 1"></span>
+                                                    </span>
+                                                        <div class="flex items-center gap-2">
+                                                        <span class="text-sm font-bold"
+                                                              :class="sample.is_slow ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'"
+                                                              x-text="formatDuration(sample.duration_ms)"></span>
+                                                            <template x-if="sample.is_slow">
+                                                            <span class="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full">
+                                                                >P95
+                                                            </span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                    <div class="space-y-2">
+                                                        <div>
+                                                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                                Instance ID</p>
+                                                            <div class="flex items-center gap-2">
+                                                                <code class="text-xs font-mono text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 flex-1 break-all select-all"
+                                                                      x-text="sample.instance_id"></code>
+                                                                <button @click="navigator.clipboard.writeText(sample.instance_id)"
+                                                                        class="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors flex-shrink-0"
+                                                                        title="Copy to clipboard">
+                                                                    <i data-lucide="copy"
+                                                                       class="h-4 w-4"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <template
+                                                                x-if="sample.business_key && sample.business_key !== 'N/A'">
+                                                            <div>
+                                                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                                    Business Key</p>
+                                                                <div class="flex items-center gap-2">
+                                                                    <code class="text-xs font-mono text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 flex-1 break-all select-all"
+                                                                          x-text="sample.business_key"></code>
+                                                                    <button @click="navigator.clipboard.writeText(sample.business_key)"
+                                                                            class="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors flex-shrink-0"
+                                                                            title="Copy to clipboard">
+                                                                        <i data-lucide="copy"
+                                                                           class="h-4 w-4"></i>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-1">
+                                                            <template x-if="sample.start_time">
+                                                        <span>Started: <span
+                                                                x-text="new Date(sample.start_time).toLocaleString()"></span></span>
+                                                            </template>
+                                                            <template x-if="sample.end_time">
+                                                        <span>Ended: <span
+                                                                x-text="new Date(sample.end_time).toLocaleString()"></span></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+            <template x-if="!aiData.anomalies?.anomalies?.length">
+                <div class="text-center py-8">
+                    <i data-lucide="check-circle" class="h-12 w-12 text-green-500 mx-auto mb-2"></i>
+                    <p class="text-gray-600 dark:text-gray-400">All processes are operating within
+                        normal
+                        parameters</p>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+

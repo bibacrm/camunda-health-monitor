@@ -12,5 +12,31 @@ def index():
     """Main dashboard page"""
     data = collect_engine_health()
     stuck_days = current_app.config.get('STUCK_INSTANCE_DAYS', 7)
-    return render_template('index.html', data=data, stuck_days=stuck_days)
 
+    # UI Configuration - pass backend config to frontend
+    ui_config = {
+        'autoRefreshInterval': current_app.config.get('UI_AUTO_REFRESH_INTERVAL_MS', 30000),
+        'archiveDaysThreshold': current_app.config.get('DB_ARCHIVE_THRESHOLD_DAYS', 90),
+        'aiDisplayLimits': {
+            'rows_limit': current_app.config.get('AI_UI_RESULTS_LIMIT', 20),
+        }
+    }
+
+    return render_template('dashboard.html', data=data, stuck_days=stuck_days, ui_config=ui_config)
+
+
+@main_bp.route('/ai-analysis')
+def ai_analysis():
+    """AI Analysis page"""
+    # UI Configuration for AI page
+    ui_config = {
+        'autoRefreshInterval': current_app.config.get('UI_AUTO_REFRESH_INTERVAL_MS', 30000),
+        'aiDisplayLimits': {
+            'rows_limit': current_app.config.get('AI_UI_RESULTS_LIMIT', 20),
+        },
+        'lookbackDays': current_app.config.get('AI_LOOKBACK_DAYS', 30),
+        'capacityTrainingDays': current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90),
+        'edition': current_app.config.get('EDITION', 'oss'),  # 'oss' or 'enterprise'
+    }
+
+    return render_template('ai_analytics.html', ui_config=ui_config)

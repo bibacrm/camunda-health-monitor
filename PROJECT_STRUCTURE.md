@@ -20,7 +20,8 @@ camunda-health-monitor/
 ├── services/               # Business logic layer
 │   ├── __init__.py
 │   ├── camunda_service.py  # Camunda health collection
-│   └── database_service.py # Database metrics
+│   ├── database_service.py # Database metrics
+│   └── ai_service.py       # AI/ML analytics
 │
 ├── helpers/                # Utility modules
 │   ├── __init__.py
@@ -46,18 +47,27 @@ camunda-health-monitor/
 ┌─────────────────────────────────────┐
 │         Browser (UI)                │
 │  Alpine.js + Tailwind CSS           │
+│  - Main Dashboard                   │
+│  - AI Intelligence Layer (NEW!)     │
 └────────────┬────────────────────────┘
              │ HTTP/JSON
              ▼
 ┌─────────────────────────────────────┐
 │      Routes (HTTP Handlers)         │
 │  main.py, api.py, metrics.py        │
+│  - /api/ai/* endpoints (NEW!)       │
+│  - Prometheus AI metrics (NEW!)     │
 └────────────┬────────────────────────┘
              │ Function calls
              ▼
 ┌─────────────────────────────────────┐
 │     Services (Business Logic)       │
-│  camunda_service, database_service  │
+│  - camunda_service                  │
+│  - database_service                 │
+│  - ai_service (NEW!)                │
+│    • Anomaly Detection              │
+│    • Pattern Recognition            │
+│    • Predictive Analytics           │
 └─────┬──────────────────┬────────────┘
       │                  │
       │ DB queries       │ REST API calls
@@ -65,6 +75,8 @@ camunda-health-monitor/
 ┌──────────────┐   ┌──────────────────┐
 │  PostgreSQL  │   │  Camunda Nodes   │
 │   Database   │   │   (REST API)     │
+│  ACT_HI_*    │   │   + JMX/Metrics  │
+│  ACT_RU_*    │   │                  │
 └──────────────┘   └──────────────────┘
 ```
 
@@ -92,6 +104,13 @@ camunda-health-monitor/
 - Parallel data collection
 - Metrics aggregation
 - Error handling with circuit breakers
+- **AI/ML Analytics** (NEW!):
+  - Anomaly detection using statistical analysis
+  - Incident pattern recognition with clustering
+  - Predictive analytics for job failures and SLA breaches
+  - Performance scoring and rankings
+  - Bottleneck identification
+  - Health score calculations
 
 **Helpers** (`helpers/`)
 - Database connection pooling
@@ -132,6 +151,51 @@ Kubernetes → metrics.py
     ├─→ Test Camunda node reachability
     └─→ Check circuit breaker states
   ← Return 200 (ready) or 503 (not ready)
+```
+
+### AI Insights (`/api/ai/insights`) - NEW!
+
+```
+Browser → api.py → ai_service.get_ai_insights()
+  → Parallel execution of all AI features:
+    ├─→ get_cluster_health_score(cluster_data, db_metrics)
+    │   └─→ Calculate composite score (no DB queries)
+    ├─→ detect_process_anomalies(lookback_days=7)
+    │   └─→ Query ACT_HI_PROCINST (50K rows max)
+    │   └─→ Statistical Z-score analysis
+    ├─→ analyze_incident_patterns(lookback_days=30)
+    │   └─→ Query ACT_HI_INCIDENT or ACT_RU_JOB
+    │   └─→ Pattern clustering and grouping
+    ├─→ identify_bottlenecks(lookback_days=7)
+    │   └─→ Query ACT_HI_ACTINST (50K rows max)
+    │   └─→ Percentile calculations (P95, P99)
+    ├─→ predict_job_failures(lookback_days=7)
+    │   └─→ Query ACT_RU_JOB with exceptions
+    │   └─→ Failure rate analysis
+    ├─→ analyze_node_performance(cluster_nodes)
+    │   └─→ JVM metrics analysis (no DB queries)
+    ├─→ get_process_leaderboard(lookback_days=30)
+    │   └─→ Query ACT_HI_PROCINST with aggregations
+    └─→ predict_sla_breaches(threshold_hours=24)
+        └─→ Query ACT_RU_TASK
+        └─→ Calculate wait times
+  ← Aggregate all results
+  ← Generate recommendations
+← Return comprehensive JSON
+```
+
+### Prometheus AI Metrics (`/metrics`) - NEW!
+
+```
+Prometheus → metrics.py → _collect_ai_metrics_for_prometheus()
+  → Fast aggregation queries (NO row fetching):
+    ├─→ Health Score (uses existing cluster_data, 0 queries)
+    ├─→ Anomaly Count (COUNT query with avg > 1 hour)
+    ├─→ Incident Patterns (COUNT DISTINCT incident types)
+    ├─→ Bottleneck Count (COUNT with avg > 10 seconds)
+    └─→ SLA At-Risk (COUNT tasks created > 80% threshold)
+  ← Return metrics in Prometheus format
+← Scrape completed
 ```
 
 ## Key Features
@@ -182,6 +246,16 @@ DEBUG=false
 JSON_LOGGING=false
 SSL_VERIFY=false
 STUCK_INSTANCE_DAYS=7
+
+# AI/ML Configuration
+AI_LOOKBACK_DAYS=30                     # Historical analysis window for all AI features
+AI_MAX_INSTANCES=50000                  # Max instances to query for AI analysis
+AI_MAX_INCIDENTS=1000                   # Max incidents for pattern recognition
+AI_MIN_DATA=10                          # Minimum data points for analysis
+AI_UI_RESULTS_LIMIT=20                  # Max results to display in UI/API
+SLA_THRESHOLD_HOURS=24                  # SLA breach threshold
+UI_AUTO_REFRESH_INTERVAL_MS=30000       # Auto-refresh interval
+DB_ARCHIVE_THRESHOLD_DAYS=90            # Archive display threshold
 ```
 
 ## Deployment Modes

@@ -38,7 +38,11 @@ def create_app(config_name=None):
     Returns:
         Configured Flask application
     """
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder="templates")
+
+    # add enterprise submodule templates
+    enterprise_templates = os.path.join(os.path.dirname(__file__), "enterprise", "templates")
+    app.jinja_loader.searchpath.append(enterprise_templates)
 
     # Load configuration
     from config import get_config
@@ -185,10 +189,34 @@ def initialize_extensions(app):
     health_registry.mark_startup_complete()
 
 
+def load_enterprise_extensions(app):
+    """Load enterprise extensions if available"""
+    logger = logging.getLogger('champa_monitor')
+
+    # Try to import enterprise API routes
+    try:
+        from enterprise.routes import api_enterprise
+        # Register the enterprise blueprint
+        app.register_blueprint(api_enterprise.api_enterprise_bp)
+        logger.info("Enterprise AI endpoints loaded")
+    except (ImportError, ModuleNotFoundError):
+        logger.info("Enterprise features not available (OSS mode)")
+
+    # Try to import enterprise AI service
+    try:
+        from enterprise.services import ai_service_enterprise
+        logger.info("Enterprise AI service loaded")
+    except (ImportError, ModuleNotFoundError):
+        logger.info("Enterprise AI service not available (OSS mode)")
+
+
 def register_blueprints(app):
     """Register Flask blueprints (route modules)"""
     from routes import register_blueprints as reg_bp
     reg_bp(app)
+
+    # Conditionally load enterprise routes if available
+    load_enterprise_extensions(app)
 
 
 def register_filters(app):

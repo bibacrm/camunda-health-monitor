@@ -1,0 +1,631 @@
+{% extends "base.html" %}
+
+{% block title %}AI Analysis{% if ui_config.edition == 'enterprise' %} - Enterprise Edition{% endif %} - Camunda Health Monitor{% endblock %}
+
+{% block alpine_data %}aiAnalyticsMonitor(){% endblock %}
+
+{% block header_info %}
+    <div class="text-sm text-gray-500 dark:text-gray-400">
+        Last updated: <span class="font-medium text-gray-700 dark:text-gray-300"
+                            x-text="formatTime(lastUpdate)"></span>
+    </div>
+{% endblock %}
+
+{% block mobile_menu_extra %}
+    <div class="flex items-center justify-between text-base text-gray-900 dark:text-gray-100">
+        <span>Last updated:</span>
+        <span class="font-medium" x-text="formatTime(lastUpdate)"></span>
+    </div>
+{% endblock %}
+
+{% block content %}
+    <!-- AI Intelligence Layer -->
+    <div class="bg-gradient-to-br from-sky-50 via-cyan-50 to-blue-50 dark:from-sky-900/20 dark:via-cyan-900/20 dark:to-blue-900/20 rounded-xl p-6 mb-6 border-2 border-sky-200 dark:border-sky-800 shadow-lg">
+
+        <!-- Header - Always Visible -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center space-x-4">
+                <i data-lucide="brain" class="h-7 w-7 text-sky-600 dark:text-sky-400"></i>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    AI Intelligence Layer
+                </h2>
+                <span class="ml-2 text-xs px-3 py-1 bg-sky-600 text-white rounded-full">POWERED BY ML</span>
+                {% if ui_config.edition == 'enterprise' %}
+                <span class="ml-2 text-xs px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-bold">
+                    ENTERPRISE
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- AI Content - Lazy load when scrolled into view -->
+        <div x-intersect.once="!aiData && !aiLoading && loadAIInsights()">
+
+            <!-- Loading State for AI Insights -->
+            <template x-if="aiLoading && !aiData">
+                <div class="flex flex-col items-center justify-center py-12">
+                    <div class="loader mb-4"></div>
+                    <p class="text-gray-600 dark:text-gray-400">AI analyzing the Camunda cluster...</p>
+                </div>
+            </template>
+
+            <!-- Error State -->
+            <template x-if="aiError && !aiData">
+                <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <p class="text-red-700 dark:text-red-300 mb-2">Failed to load AI insights</p>
+                    <button @click="refreshAIInsights()" class="text-sm text-red-600 dark:text-red-400 underline">Try
+                        Again
+                    </button>
+                </div>
+            </template>
+
+            <!-- AI Content - Core metrics using aiData -->
+            <template x-if="aiData">
+                <div>
+                    <!-- Tab Navigation -->
+                    <div class="mb-6 border-b border-gray-200 dark:border-gray-700">
+                        <nav class="-mb-px flex space-x-4" role="tablist">
+                            <!-- Tab 1: Health & Performance - Always visible -->
+                            <button @click="activeTab = 'health'"
+                                    :class="activeTab === 'health'
+                                    ? 'border-sky-500 text-sky-600 dark:text-sky-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+                                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                                <i data-lucide="activity" class="h-4 w-4 mr-2"></i>
+                                Health & Performance
+                                <span class="group relative ml-2">
+                                    <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        <strong>Overview & Status Monitoring</strong><br/>
+                                        Real-time cluster health score, anomaly detection, and process categorization by speed. Use this tab for quick health checks and identifying processes by their performance characteristics. Perfect for daily monitoring and status reports.
+                                    </span>
+                                </span>
+                            </button>
+
+                            <!-- Tab 2: Issues & Alerts - Always visible -->
+                            <button @click="activeTab = 'issues'"
+                                    :class="activeTab === 'issues'
+                                    ? 'border-red-500 text-red-600 dark:text-red-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+                                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                                <i data-lucide="alert-triangle" class="h-4 w-4 mr-2"></i>
+                                Issues & Alerts
+                                <span class="group relative ml-2">
+                                    <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        <strong>Problem Detection & Root Cause</strong><br/>
+                                        Identifies stuck processes, outliers with >15% deviation, and processes with extreme variability. Use this tab for incident investigation, troubleshooting, and identifying unstable workflows. Each alert includes specific instance IDs and business keys for immediate action.
+                                    </span>
+                                </span>
+                            </button>
+
+                            {% if ui_config.edition == 'enterprise' %}
+                            <!-- Tab 3: Advanced Analytics - Enterprise only -->
+                            <button @click="activeTab = 'analytics'"
+                                    :class="activeTab === 'analytics'
+                                    ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+                                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                                <i data-lucide="sparkles" class="h-4 w-4 mr-2"></i>
+                                Advanced Analytics
+                                <span class="ml-2 text-xs px-2 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-[10px] font-bold">
+                                    PRO
+                                </span>
+                                <span class="group relative ml-2">
+                                    <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        <strong>ML-Powered Deep Insights</strong><br/>
+                                        Machine learning features including smart stuck activity detection, capacity forecasting, ML-based duration predictions, and activity bottleneck analysis with ROI calculations. Use this tab for proactive optimization, resource planning, and data-driven decision making.
+                                    </span>
+                                </span>
+                            </button>
+
+                            <!-- Tab 4: Trends & Planning - Enterprise only -->
+                            <button @click="activeTab = 'trends'"
+                                    :class="activeTab === 'trends'
+                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+                                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                                <i data-lucide="trending-up" class="h-4 w-4 mr-2"></i>
+                                Trends & Planning
+                                <span class="ml-2 text-xs px-2 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-[10px] font-bold">
+                                    PRO
+                                </span>
+                                <span class="group relative ml-2">
+                                    <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        <strong>Historical Analysis & Forecasting</strong><br/>
+                                        Version performance history, weekly load patterns, and actionable recommendations. Use this tab for capacity planning, identifying optimal maintenance windows, detecting version regressions, and strategic infrastructure decisions. Essential for budget planning and change management.
+                                    </span>
+                                </span>
+                            </button>
+                            {% endif %}
+                        </nav>
+                    </div>
+
+                    <!-- Tab Content Container -->
+                    <div>
+                        <!-- Tab 1: Health & Performance - Always included -->
+                        {% include 'partials/tab_health_performance.html' %}
+
+                        <!-- Tab 2: Issues & Alerts - Always included -->
+                        {% include 'partials/tab_issues_alerts.html' %}
+
+                        {% if ui_config.edition == 'enterprise' %}
+                        <!-- Tab 3: Advanced Analytics - Enterprise only -->
+                        {% include 'partials/tab_advanced_analytics.html' %}
+
+                        <!-- Tab 4: Trends & Planning - Enterprise only -->
+                        {% include 'partials/tab_trends_planning.html' %}
+                        {% endif %}
+
+                    </div> <!-- End Tab Content Container -->
+
+                    <!-- Modals for AI insights -->
+                    {% include 'partials/anomaly_modal.html' %}
+                    {% include 'partials/incident_modal.html' %}
+                    {% include 'partials/variability_modal.html' %}
+                    {% include 'partials/outlier_modal.html' %}
+                </div>
+
+            </template>
+        </div>
+        {% include 'partials/category_modal.html' %}
+        {% include 'partials/stuck_modal.html' %}
+
+    </div>  <!-- End of AI Intelligence Layer -->
+
+    {% if ui_config.edition == 'oss' %}
+<!-- Enterprise Upgrade CTA - Collapsible -->
+<div x-data="{ upgradeExpanded: localStorage.getItem('upgradeExpanded') !== 'false' }"
+     class="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border-2 border-purple-200 dark:border-purple-800 shadow-lg overflow-hidden">
+
+    <!-- Header - Always Visible -->
+    <div class="flex items-center justify-between p-4 cursor-pointer"
+         @click="upgradeExpanded = !upgradeExpanded; localStorage.setItem('upgradeExpanded', upgradeExpanded)">
+        <div class="flex items-center space-x-3">
+            <i data-lucide="sparkles" class="h-6 w-6 text-purple-600 dark:text-purple-400"></i>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">
+                Unlock Advanced Analytics & Trends
+            </h3>
+            <span class="text-xs px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-bold">
+                ENTERPRISE
+            </span>
+        </div>
+
+        <!-- Collapse/Expand Button -->
+        <button class="p-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                @click.stop="upgradeExpanded = !upgradeExpanded; localStorage.setItem('upgradeExpanded', upgradeExpanded)">
+            <i data-lucide="chevron-down"
+               class="h-5 w-5 text-purple-600 dark:text-purple-400 transition-transform duration-200"
+               :class="{ 'rotate-180': upgradeExpanded }"></i>
+        </button>
+    </div>
+
+    <!-- Collapsible Content -->
+    <div x-show="upgradeExpanded"
+         x-collapse
+         class="px-4 pb-4">
+        <p class="text-gray-700 dark:text-gray-300 mb-4">
+            Get ML-powered capacity forecasting, duration predictions, activity bottleneck ROI analysis, version performance tracking, and comprehensive load patterns with our Enterprise Edition.
+        </p>
+
+        <ul class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4 text-sm text-gray-600 dark:text-gray-400">
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Smart Stuck Activity Detection</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>ML-Based Duration Predictions</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Capacity Forecasting</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Activity Bottleneck ROI Analysis</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Complete Version History Tracking</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Weekly Load Patterns & Heatmaps</span>
+            </li>
+        </ul>
+
+        <div class="flex items-center justify-between">
+            <a href="https://champa-bpmn.com/"
+               target="_blank"
+               class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg shadow-lg hover:from-purple-700 hover:to-pink-700 transition-all">
+                <span>Upgrade to Enterprise</span>
+                <i data-lucide="arrow-right" class="h-5 w-5 ml-2"></i>
+            </a>
+
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+    <script>
+        function aiAnalyticsMonitor() {
+            return {
+                ...baseMonitor(),
+
+                // Tab state
+                activeTab: 'health',
+
+                edition: '{{ ui_config.edition }}',
+
+                // AI/ML states
+                aiLoading: false,
+                aiData: null,
+                aiError: null,
+                lastUpdate: new Date().toISOString(),
+                selectedIncident: null,
+                selectedAnomaly: null,
+                selectedStuckProcess: null,
+                selectedVariabilityAlert: null,
+                selectedOutlierProcess: null,
+                selectedCategory: null,
+                selectedCategoryData: null,
+
+                // Advanced ML features states
+                stuckActivitiesData: null,
+                stuckActivitiesLoading: false,
+                capacityForecastData: null,
+                capacityForecastLoading: false,
+                durationPredictions: null,
+                durationPredictionsLoading: false,
+                durationPredictionsLoaded: false,
+
+                // New data block states
+                processCategories: null,
+                processCategoriesLoading: false,
+                stuckProcesses: null,
+                stuckProcessesLoading: false,
+                outlierPatterns: null,
+                outlierPatternsLoading: false,
+                extremeVariability: null,
+                extremeVariabilityLoading: false,
+
+                // NEW: Activity Bottlenecks
+                activityBottlenecks: null,
+                activityBottlenecksLoading: false,
+
+                // NEW: Version History
+                versionHistory: null,
+                versionHistoryLoading: false,
+
+                // NEW: Critical Insights
+                criticalInsights: null,
+                criticalInsightsLoading: false,
+
+                // NEW: Weekly Load Patterns
+                weeklyLoadPatterns: null,
+                weeklyLoadPatternsLoading: false,
+
+                init() {
+                    // Initialize base monitor
+                    this.darkMode = localStorage.getItem('darkMode') === 'true';
+                    this.applyDarkMode();
+
+                    // Auto-load AI insights on page load
+                    this.loadAIInsights();
+
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                async refreshData() {
+                    // Refresh AI insights
+                    await this.refreshAIInsights();
+                },
+
+                // AI Insights loading
+                async loadAIInsights() {
+                    if (this.aiLoading || this.aiData) return;
+
+                    this.aiLoading = true;
+                    this.aiError = null;
+
+                    try {
+                        const response = await fetch('/api/ai/insights');
+                        if (!response.ok) {
+                            throw new Error(`Server responded with ${response.status}`);
+                        }
+                        const data = await response.json();
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+                        this.aiData = data;
+                        this.lastUpdate = data.timestamp || new Date().toISOString();
+
+                        console.log('AI Data loaded:', {
+                            health_score: data.health_score?.overall_score || 0,
+                            anomalies: data.anomalies?.anomalies?.length || 0,
+                            sla_risks: data.sla_predictions?.at_risk_tasks?.length || 0,
+                            bottlenecks: data.bottlenecks?.bottlenecks?.length || 0,
+                            incidents: data.incidents?.total_incidents || 0,
+                            critical_insights: data.critical_insights?.total_critical_alerts || 0,
+                            outliers: data.outlier_patterns?.high_outlier_count || 0
+                        });
+                    } catch (error) {
+                        console.error('Error loading AI insights:', error);
+                        this.aiError = error.message;
+                    } finally {
+                        this.aiLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                async refreshAIInsights() {
+                    this.aiData = null;
+                    this.aiLoading = false;
+                    await this.loadAIInsights();
+                },
+
+                // Advanced ML Features
+                loadAdvancedMLFeatures() {
+                    // This method is called when the advanced features section becomes visible
+                    // Features are loaded on-demand when user clicks their respective buttons
+                    console.log('Advanced ML features section visible - ready for on-demand loading');
+                },
+
+                async loadStuckActivities() {
+                    if (this.stuckActivitiesLoading) return;
+
+                    this.stuckActivitiesLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/stuck-activities-smart');
+                        if (response.ok) {
+                            this.stuckActivitiesData = await response.json();
+                        }
+                    } catch (error) {
+                        console.error('Error loading stuck activities:', error);
+                    } finally {
+                        this.stuckActivitiesLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                async loadCapacityForecast() {
+                    if (this.capacityForecastLoading) return;
+
+                    this.capacityForecastLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/capacity-forecast');
+                        if (response.ok) {
+                            this.capacityForecastData = await response.json();
+                        }
+                    } catch (error) {
+                        console.error('Error loading capacity forecast:', error);
+                    } finally {
+                        this.capacityForecastLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                async loadAllDurationPredictions() {
+                    if (this.durationPredictionsLoading) return;
+
+                    this.durationPredictionsLoading = true;
+                    this.durationPredictionsLoaded = true;
+                    try {
+                        const response = await fetch('/api/ai/predict-all-durations');
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Sort by predicted duration (longest first), treating null as 0
+                            this.durationPredictions = (data.predictions || []).sort((a, b) => {
+                                const aDuration = a.predicted_duration_ms != null ? a.predicted_duration_ms : 0;
+                                const bDuration = b.predicted_duration_ms != null ? b.predicted_duration_ms : 0;
+                                return bDuration - aDuration;
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error loading all duration predictions:', error);
+                    } finally {
+                        this.durationPredictionsLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // NEW: Load Process Categories
+                async loadProcessCategories() {
+                    if (this.processCategoriesLoading) return;
+
+                    this.processCategoriesLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/process-categories');
+                        if (response.ok) {
+                            this.processCategories = await response.json();
+                        }
+                    } catch (error) {
+                        console.error('Error loading process categories:', error);
+                    } finally {
+                        this.processCategoriesLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // NEW: Load Stuck Processes
+                async loadStuckProcesses() {
+                    if (this.stuckProcessesLoading) return;
+
+                    this.stuckProcessesLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/stuck-processes');
+                        if (response.ok) {
+                            this.stuckProcesses = await response.json();
+                        }
+                    } catch (error) {
+                        console.error('Error loading stuck processes:', error);
+                    } finally {
+                        this.stuckProcessesLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // NEW: Load Outlier Patterns
+                async loadOutlierPatterns() {
+                    if (this.outlierPatternsLoading) return;
+
+                    this.outlierPatternsLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/outlier-patterns');
+                        if (response.ok) {
+                            this.outlierPatterns = await response.json();
+                        }
+                    } catch (error) {
+                        console.error('Error loading outlier patterns:', error);
+                    } finally {
+                        this.outlierPatternsLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // NEW: Load Extreme Variability
+                async loadExtremeVariability() {
+                    if (this.extremeVariabilityLoading) return;
+
+                    this.extremeVariabilityLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/process-variability');
+                        if (response.ok) {
+                            this.extremeVariability = await response.json();
+                        }
+                    } catch (error) {
+                        console.error('Error loading extreme variability:', error);
+                    } finally {
+                        this.extremeVariabilityLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // NEW: Load Activity Bottlenecks
+                async loadActivityBottlenecks() {
+                    if (this.activityBottlenecksLoading) return;
+
+                    this.activityBottlenecksLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/activity-bottlenecks?days=30&limit=30');
+                        if (response.ok) {
+                            this.activityBottlenecks = await response.json();
+                            console.log('Activity bottlenecks loaded:', this.activityBottlenecks);
+                        }
+                    } catch (error) {
+                        console.error('Error loading activity bottlenecks:', error);
+                    } finally {
+                        this.activityBottlenecksLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // NEW: Load Version History
+                async loadVersionHistory() {
+                    if (this.versionHistoryLoading) return;
+
+                    this.versionHistoryLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/version-history?days=180');
+                        if (response.ok) {
+                            this.versionHistory = await response.json();
+                            // Initialize expanded state for each comparison
+                            if (this.versionHistory.version_comparisons) {
+                                this.versionHistory.version_comparisons.forEach(comp => {
+                                    comp.expanded = false;
+                                });
+                            }
+                            console.log('Version history loaded:', this.versionHistory);
+                        }
+                    } catch (error) {
+                        console.error('Error loading version history:', error);
+                    } finally {
+                        this.versionHistoryLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // NEW: Load Critical Insights
+                async loadCriticalInsights() {
+                    if (this.criticalInsightsLoading) return;
+
+                    this.criticalInsightsLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/critical-insights?days=30');
+                        if (response.ok) {
+                            this.criticalInsights = await response.json();
+                            console.log('Critical insights loaded:', this.criticalInsights);
+                        }
+                    } catch (error) {
+                        console.error('Error loading critical insights:', error);
+                    } finally {
+                        this.criticalInsightsLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // NEW: Load Weekly Load Patterns
+                async loadWeeklyLoadPatterns() {
+                    if (this.weeklyLoadPatternsLoading) return;
+
+                    this.weeklyLoadPatternsLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/load-patterns?days=90');
+                        if (response.ok) {
+                            this.weeklyLoadPatterns = await response.json();
+                            console.log('Weekly load patterns loaded:', this.weeklyLoadPatterns);
+                        }
+                    } catch (error) {
+                        console.error('Error loading weekly load patterns:', error);
+                    } finally {
+                        this.weeklyLoadPatternsLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // Helper: Get category description
+                getCategoryDescription(category) {
+                    const descriptions = {
+                        'ultra_fast': 'Extremely fast processes that complete in under 5 seconds. Perfect for real-time user interactions and synchronous operations.',
+                        'very_fast': 'Very responsive processes completing in 5-30 seconds. Excellent for user-facing workflows and API responses.',
+                        'fast_background': 'Fast background processes completing in under 6 minutes. Suitable for async operations and background tasks.',
+                        'standard': 'Standard business processes completing in 6-30 minutes. Typical for most automated workflows.',
+                        'extended': 'Extended processes taking 30 minutes to 4 hours. Often involve complex processing or external system integration.',
+                        'long_running': 'Long-running processes taking 4-24 hours. Typically batch jobs or data-intensive operations.',
+                        'batch_manual': 'Very long processes exceeding 24 hours. Usually batch jobs, manual workflows, or special long-running operations.'
+                    };
+                    return descriptions[category] || 'No description available';
+                },
+
+                // Helper: Get all processes for a specific category
+                getProcessesForCategory(category) {
+                    if (!this.processCategories || !this.processCategories.categories) {
+                        return [];
+                    }
+
+                    const processes = [];
+                    for (const [key, data] of Object.entries(this.processCategories.categories)) {
+                        if (data.category === category) {
+                            processes.push({
+                                key: key,
+                                ...data
+                            });
+                        }
+                    }
+
+                    // Sort by median duration (fastest first)
+                    return processes.sort((a, b) => a.median_seconds - b.median_seconds);
+                }
+            };
+        }
+    </script>
+{% endblock %}
+
+
+

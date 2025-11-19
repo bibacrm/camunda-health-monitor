@@ -1,0 +1,111 @@
+<!-- Stuck Process Details Modal -->
+<div x-ref="stuckModal"
+     class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+     @click.self="$refs.stuckModal.classList.add('hidden')">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[85vh] overflow-hidden">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 z-10">
+            <div class="flex items-center">
+                <i data-lucide="clock" class="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2"></i>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+                    x-text="'Stuck Instances: ' + (selectedStuckProcess?.process_key || '')"></h3>
+            </div>
+            <button @click="$refs.stuckModal.classList.add('hidden')"
+                    class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <i data-lucide="x" class="h-5 w-5"></i>
+            </button>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+            <template x-if="selectedStuckProcess">
+                <div class="space-y-6">
+                    <!-- Summary Card -->
+                    <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="text-center">
+                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Stuck</p>
+                                <p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400"
+                                   x-text="selectedStuckProcess.stuck_count"></p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Oldest
+                                    (Days)</p>
+                                <p class="text-2xl font-bold text-red-600 dark:text-red-400"
+                                   x-text="selectedStuckProcess.oldest_stuck_days?.toFixed(0) || 0"></p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Oldest
+                                    (Hours)</p>
+                                <p class="text-2xl font-bold text-orange-600 dark:text-orange-400"
+                                   x-text="selectedStuckProcess.oldest_stuck_hours?.toFixed(0) || 0"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Oldest Instance Details -->
+                    <div>
+                        <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Oldest
+                            Stuck Instance</h5>
+                        <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <div class="space-y-3">
+                                <div>
+                                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1.5">Instance
+                                        ID</p>
+                                    <div class="flex items-center gap-2">
+                                        <code class="text-sm font-mono text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 flex-1 break-all select-all"
+                                              x-text="selectedStuckProcess.oldest_instance_id"></code>
+                                        <button @click="navigator.clipboard.writeText(selectedStuckProcess.oldest_instance_id)"
+                                                class="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors flex-shrink-0"
+                                                title="Copy to clipboard">
+                                            <i data-lucide="copy" class="h-4 w-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <template
+                                        x-if="selectedStuckProcess.oldest_business_key && selectedStuckProcess.oldest_business_key !== 'N/A'">
+                                    <div>
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-1.5">
+                                            Business Key</p>
+                                        <div class="flex items-center gap-2">
+                                            <code class="text-sm font-mono text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 flex-1 break-all select-all"
+                                                  x-text="selectedStuckProcess.oldest_business_key"></code>
+                                            <button @click="navigator.clipboard.writeText(selectedStuckProcess.oldest_business_key)"
+                                                    class="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors flex-shrink-0"
+                                                    title="Copy to clipboard">
+                                                <i data-lucide="copy" class="h-4 w-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                                <div>
+                                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">Status</p>
+                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
+                                          :class="{
+                                              'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': selectedStuckProcess.status === 'critical',
+                                              'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400': selectedStuckProcess.status === 'warning',
+                                              'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400': selectedStuckProcess.status === 'attention'
+                                          }"
+                                          x-text="selectedStuckProcess.status?.toUpperCase()"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recommendation -->
+                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                        <p class="text-sm text-blue-700 dark:text-blue-300">
+                            <i data-lucide="lightbulb" class="inline h-4 w-4 mr-1"></i>
+                            <strong>Recommendation:</strong> <span
+                                x-text="selectedStuckProcess.recommendation"></span>
+                        </p>
+                        <ul class="mt-2 ml-6 text-xs text-blue-600 dark:text-blue-400 space-y-1 list-disc">
+                            <li>Check for waiting external callbacks</li>
+                            <li>Look for missing message correlation</li>
+                            <li>Review stuck user tasks or timers</li>
+                            <li>Check database locks or resource constraints</li>
+                        </ul>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
