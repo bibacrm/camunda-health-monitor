@@ -38,7 +38,11 @@ def create_app(config_name=None):
     Returns:
         Configured Flask application
     """
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder="templates")
+
+    # add enterprise submodule templates
+    enterprise_templates = os.path.join(os.path.dirname(__file__), "enterprise", "templates")
+    app.jinja_loader.searchpath.append(enterprise_templates)
 
     # Load configuration
     from config import get_config

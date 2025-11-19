@@ -92,3 +92,5 @@ htmlcov/
 Thumbs.db
 desktop.ini
 
+# Ignore private enterprise submodule in Docker build
+enterprise/
