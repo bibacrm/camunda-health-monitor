@@ -8,7 +8,12 @@ from helpers.error_handler import handle_errors
 from helpers.db_helper import execute_query
 from services.camunda_service import collect_engine_health
 from services.database_service import collect_database_metrics
-from services.ai_service import get_ai_analytics
+# Smart AI service import - uses enterprise if available
+try:
+    from services.ai_service_enterprise import get_ai_analytics
+except (ImportError, ModuleNotFoundError):
+    from services.ai_service import get_ai_analytics
+
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -318,196 +323,6 @@ def api_ai_insights():
     return jsonify(insights)
 
 
-# ===== ADVANCED ML ENDPOINTS =====
-
-@api_bp.route('/ai/stuck-activities-smart')
-@handle_errors(context="Finding stuck activities with smart detection")
-def api_ai_stuck_activities_smart():
-    """
-    Advanced stuck activity detection using statistical percentile thresholds
-    Identifies activities taking abnormally long based on historical patterns
-    """
-    ai = get_ai_analytics()
-    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
-
-    result = ai.find_stuck_activities_smart(lookback_days=lookback_days)
-    result['timestamp'] = datetime.now().isoformat()
-
-    return jsonify(result)
-
-
-@api_bp.route('/ai/predict-duration/<process_def_key>')
-@handle_errors(context="Predicting process duration")
-def api_ai_predict_duration(process_def_key):
-    """
-    Predict how long a process will take to complete using ML
-    Based on historical execution patterns and time-of-day factors
-    """
-    ai = get_ai_analytics()
-
-    prediction = ai.predict_process_duration(process_def_key)
-    prediction['timestamp'] = datetime.now().isoformat()
-    prediction['process_def_key'] = process_def_key
-
-    return jsonify(prediction)
-
-
-@api_bp.route('/ai/predict-all-durations')
-@handle_errors(context="Predicting all process durations")
-def api_ai_predict_all_durations():
-    """
-    Predict durations for all process definitions in the system
-    Returns list sorted by predicted duration (longest first)
-    """
-    ai = get_ai_analytics()
-
-    # Get all process definitions with recent activity
-    recent_processes_query = """
-                             SELECT DISTINCT proc_def_key_
-                             FROM act_hi_procinst
-                             WHERE start_time_ > NOW() - INTERVAL '30 days'
-                             ORDER BY proc_def_key_ \
-                             """
-
-    process_keys = execute_query(recent_processes_query)
-
-    if not process_keys:
-        return jsonify({
-            'predictions': [],
-            'total_processes': 0,
-            'timestamp': datetime.now().isoformat(),
-            'message': 'No process definitions found with recent activity'
-        })
-
-    def predict_single_process(row):
-        """Helper function to predict duration for a single process"""
-        proc_key = row['proc_def_key_']
-        try:
-            pred = ai.predict_process_duration(proc_key)
-            pred['process_key'] = proc_key
-            return pred
-        except Exception as e:
-            current_app.logger.warning(f"Failed to predict duration for {proc_key}: {e}")
-            return None
-
-    predictions = []
-
-    # Process predictions in parallel with 8 workers
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        # Submit all tasks
-        future_to_key = {executor.submit(predict_single_process, row): row['proc_def_key_']
-                         for row in process_keys}
-
-        # Collect results as they complete
-        for future in as_completed(future_to_key):
-            result = future.result()
-            if result is not None:
-                predictions.append(result)
-
-    # Sort by predicted duration (longest first), handle None values
-    predictions.sort(key=lambda x: x.get('predicted_duration_hours') or 0, reverse=True)
-
-    return jsonify({
-        'predictions': predictions,
-        'total_processes': len(predictions),
-        'timestamp': datetime.now().isoformat()
-    })
-
-
-@api_bp.route('/ai/capacity-forecast')
-@handle_errors(context="Forecasting capacity needs")
-def api_ai_capacity_forecast():
-    """
-    Forecast future capacity needs based on historical load patterns
-    Uses time series analysis and trend detection
-    """
-    ai = get_ai_analytics()
-    lookback_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
-    forecast_days = int(current_app.config.get('AI_CAPACITY_FORECAST_DAYS', 30))
-
-    forecast = ai.forecast_capacity(lookback_days=lookback_days, forecast_days=forecast_days)
-    forecast['timestamp'] = datetime.now().isoformat()
-
-    return jsonify(forecast)
-
-
-@api_bp.route('/ai/variable-impact/<process_def_key>')
-@handle_errors(context="Analyzing variable impact")
-def api_ai_variable_impact(process_def_key):
-    """
-    Analyze which process variables correlate with failures or performance issues
-    Identifies high-impact variables that affect process outcomes
-    """
-    ai = get_ai_analytics()
-
-    impact = ai.analyze_variable_impact(process_def_key)
-    impact['timestamp'] = datetime.now().isoformat()
-
-    return jsonify(impact)
-
-
-@api_bp.route('/ai/activity-bottlenecks')
-@handle_errors(context="Getting activity bottlenecks")
-def api_ai_activity_bottlenecks():
-    """Get activity-level bottleneck analysis across all business-critical processes"""
-    ai = get_ai_analytics()
-    lookback_days = request.args.get('days', default=30, type=int)
-    limit = request.args.get('limit', default=30, type=int)
-
-    result = ai.analyze_activity_bottlenecks(
-        lookback_days=lookback_days,
-        limit=limit
-    )
-
-    return jsonify({
-        'activities': result,
-        'count': len(result),
-        'analysis_window_days': lookback_days,
-        'timestamp': datetime.now().isoformat()
-    })
-
-
-@api_bp.route('/ai/version-history')
-@handle_errors(context="Getting complete version history")
-def api_ai_version_history():
-    """Get complete version performance history for all processes (not just latest 2)"""
-    ai = get_ai_analytics()
-    lookback_days = request.args.get('days', default=180, type=int)
-
-    result = ai.analyze_version_performance(
-        lookback_days=lookback_days,
-        include_all_versions=True
-    )
-
-    return jsonify(result)
-
-
-@api_bp.route('/ai/critical-insights')
-@handle_errors(context="Getting critical insights")
-def api_ai_critical_insights():
-    """
-    Get critical insights with actionable recommendations
-    Includes specific instance IDs, business keys, and ROI calculations
-    """
-    ai = get_ai_analytics()
-    lookback_days = request.args.get('days', default=30, type=int)
-
-    # Gather all analysis data for comprehensive insights
-    analysis_data = {
-        'extreme_variability': ai.analyze_extreme_variability(),
-        'version_analysis': ai.analyze_version_performance(lookback_days=90),
-        'stuck_processes': ai.analyze_stuck_processes(lookback_days=lookback_days),
-        'load_patterns': ai.analyze_load_patterns(lookback_days=90),
-        'outlier_patterns': ai.analyze_outlier_patterns(lookback_days=90),
-        'activity_bottlenecks': {'activities': ai.analyze_activity_bottlenecks(lookback_days=30, limit=30)}
-    }
-
-    # Generate critical insights
-    insights = ai.generate_critical_insights(analysis_data)
-
-    return jsonify(insights)
-
-
 # ===== NEW PROFESSIONAL ANALYSIS ENDPOINTS =====
 
 @api_bp.route('/ai/process-categories')
@@ -565,19 +380,6 @@ def api_ai_process_categories():
     return jsonify(result)
 
 
-@api_bp.route('/ai/version-performance')
-@handle_errors(context="Analyzing version performance")
-def api_ai_version_performance():
-    """Analyze performance changes between process versions"""
-    ai = get_ai_analytics()
-    lookback_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
-
-    result = ai.analyze_version_performance(lookback_days=lookback_days)
-    result['timestamp'] = datetime.now().isoformat()
-
-    return jsonify(result)
-
-
 @api_bp.route('/ai/process-variability')
 @handle_errors(context="Detecting process variability")
 def api_ai_process_variability():
@@ -601,20 +403,6 @@ def api_ai_extreme_variability():
     result['timestamp'] = datetime.now().isoformat()
 
     return jsonify(result)
-
-
-@api_bp.route('/ai/load-patterns')
-@handle_errors(context="Analyzing load patterns")
-def api_ai_load_patterns():
-    """Analyze business hours vs weekend load patterns"""
-    ai = get_ai_analytics()
-    lookback_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
-
-    result = ai.analyze_load_patterns(lookback_days=lookback_days)
-    result['timestamp'] = datetime.now().isoformat()
-
-    return jsonify(result)
-
 
 
 @api_bp.route('/ai/stuck-processes')
@@ -641,96 +429,3 @@ def api_ai_outlier_patterns():
     result['timestamp'] = datetime.now().isoformat()
 
     return jsonify(result)
-
-
-@api_bp.route('/ai/comprehensive-analysis')
-@handle_errors(context="Getting comprehensive professional analysis")
-def api_ai_comprehensive_analysis():
-    """
-    Professional enterprise-grade comprehensive analysis
-    Combines all analysis methods for full system intelligence
-    """
-    from flask import request
-    ai = get_ai_analytics()
-
-    # Get configuration
-    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
-    capacity_days = int(current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90))
-
-    # Check if quick mode (skip some analyses)
-    quick_mode = request.args.get('quick', 'false').lower() == 'true'
-
-    def get_categories():
-        return ('categories', ai.get_process_categories(lookback_days=capacity_days))
-
-    def get_version_analysis():
-        return ('version_analysis', ai.analyze_version_performance(lookback_days=capacity_days))
-
-    def get_extreme_variability():
-        categories_result = ai.get_process_categories(lookback_days=capacity_days)
-        return ('extreme_variability', ai.analyze_extreme_variability(
-            process_categories=categories_result.get('categories', {})
-        ))
-
-    def get_load_patterns():
-        return ('load_patterns', ai.analyze_load_patterns(lookback_days=capacity_days))
-
-    def get_anomalies():
-        return ('anomalies', ai.detect_process_anomalies(lookback_days=lookback_days))
-
-    def get_bottlenecks():
-        return ('bottlenecks', ai.identify_bottlenecks(lookback_days=lookback_days))
-
-    def get_incidents():
-        return ('incidents', ai.analyze_incident_patterns(lookback_days=lookback_days))
-
-    def get_job_failures():
-        return ('job_failures', ai.predict_job_failures(lookback_days=lookback_days))
-
-    def get_stuck_activities():
-        return ('stuck_activities', ai.find_stuck_activities_smart(lookback_days=lookback_days))
-
-    def get_stuck_processes():
-        return ('stuck_processes', ai.analyze_stuck_processes(lookback_days=lookback_days))
-
-    def get_outlier_patterns():
-        return ('outlier_patterns', ai.analyze_outlier_patterns(lookback_days=capacity_days))
-
-    # Execute analyses in parallel
-    analysis = {}
-
-    tasks = [
-        get_categories,
-        get_version_analysis,
-        get_extreme_variability,
-        get_load_patterns,
-        get_anomalies,
-        get_bottlenecks,
-        get_incidents,
-        get_job_failures,
-        get_stuck_processes,
-        get_outlier_patterns
-    ]
-
-    if not quick_mode:
-        tasks.append(get_stuck_activities)
-
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_task = {executor.submit(task): task for task in tasks}
-
-        for future in as_completed(future_to_task):
-            try:
-                key, result = future.result()
-                analysis[key] = result
-            except Exception as e:
-                task_name = future_to_task[future].__name__
-                analysis[task_name] = {'error': str(e)}
-                current_app.logger.error(f"Error in {task_name}: {e}")
-
-    # Generate comprehensive recommendations
-    analysis['professional_insights'] = ai.generate_professional_insights(analysis)
-    analysis['critical_insights'] = ai.generate_critical_insights_summary(analysis)
-    analysis['timestamp'] = datetime.now().isoformat()
-    analysis['analysis_mode'] = 'quick' if quick_mode else 'full'
-
-    return jsonify(analysis)

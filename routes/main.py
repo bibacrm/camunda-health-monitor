@@ -36,6 +36,7 @@ def ai_analysis():
         },
         'lookbackDays': current_app.config.get('AI_LOOKBACK_DAYS', 30),
         'capacityTrainingDays': current_app.config.get('AI_CAPACITY_TRAINING_DAYS', 90),
+        'edition': current_app.config.get('EDITION', 'oss'),  # 'oss' or 'enterprise'
     }
 
     return render_template('ai_analytics.html', ui_config=ui_config)

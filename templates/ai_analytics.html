@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}AI Analysis - Camunda Health Monitor{% endblock %}
+{% block title %}AI Analysis{% if ui_config.edition == 'enterprise' %} - Enterprise Edition{% endif %} - Camunda Health Monitor{% endblock %}
 
 {% block alpine_data %}aiAnalyticsMonitor(){% endblock %}
 
@@ -30,6 +30,11 @@
                     AI Intelligence Layer
                 </h2>
                 <span class="ml-2 text-xs px-3 py-1 bg-sky-600 text-white rounded-full">POWERED BY ML</span>
+                {% if ui_config.edition == 'enterprise' %}
+                <span class="ml-2 text-xs px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-bold">
+                    ENTERPRISE
+                </span>
+                {% endif %}
             </div>
         </div>
 
@@ -60,7 +65,7 @@
                     <!-- Tab Navigation -->
                     <div class="mb-6 border-b border-gray-200 dark:border-gray-700">
                         <nav class="-mb-px flex space-x-4" role="tablist">
-                            <!-- Tab 1: Health & Performance -->
+                            <!-- Tab 1: Health & Performance - Always visible -->
                             <button @click="activeTab = 'health'"
                                     :class="activeTab === 'health'
                                     ? 'border-sky-500 text-sky-600 dark:text-sky-400'
@@ -69,15 +74,15 @@
                                 <i data-lucide="activity" class="h-4 w-4 mr-2"></i>
                                 Health & Performance
                                 <span class="group relative ml-2">
-                                <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                                <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                    <strong>Overview & Status Monitoring</strong><br/>
-                                    Real-time cluster health score, anomaly detection, and process categorization by speed. Use this tab for quick health checks and identifying processes by their performance characteristics. Perfect for daily monitoring and status reports.
+                                    <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        <strong>Overview & Status Monitoring</strong><br/>
+                                        Real-time cluster health score, anomaly detection, and process categorization by speed. Use this tab for quick health checks and identifying processes by their performance characteristics. Perfect for daily monitoring and status reports.
+                                    </span>
                                 </span>
-                            </span>
                             </button>
 
-                            <!-- Tab 2: Issues & Alerts -->
+                            <!-- Tab 2: Issues & Alerts - Always visible -->
                             <button @click="activeTab = 'issues'"
                                     :class="activeTab === 'issues'
                                     ? 'border-red-500 text-red-600 dark:text-red-400'
@@ -86,15 +91,16 @@
                                 <i data-lucide="alert-triangle" class="h-4 w-4 mr-2"></i>
                                 Issues & Alerts
                                 <span class="group relative ml-2">
-                                <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                                <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                    <strong>Problem Detection & Root Cause</strong><br/>
-                                    Identifies stuck processes, outliers with >15% deviation, and processes with extreme variability. Use this tab for incident investigation, troubleshooting, and identifying unstable workflows. Each alert includes specific instance IDs and business keys for immediate action.
+                                    <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        <strong>Problem Detection & Root Cause</strong><br/>
+                                        Identifies stuck processes, outliers with >15% deviation, and processes with extreme variability. Use this tab for incident investigation, troubleshooting, and identifying unstable workflows. Each alert includes specific instance IDs and business keys for immediate action.
+                                    </span>
                                 </span>
-                            </span>
                             </button>
 
-                            <!-- Tab 3: Advanced Analytics -->
+                            {% if ui_config.edition == 'enterprise' %}
+                            <!-- Tab 3: Advanced Analytics - Enterprise only -->
                             <button @click="activeTab = 'analytics'"
                                     :class="activeTab === 'analytics'
                                     ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400'
@@ -102,16 +108,19 @@
                                     class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
                                 <i data-lucide="sparkles" class="h-4 w-4 mr-2"></i>
                                 Advanced Analytics
-                                <span class="group relative ml-2">
-                                <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                                <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                    <strong>ML-Powered Deep Insights</strong><br/>
-                                    Machine learning features including smart stuck activity detection, capacity forecasting, ML-based duration predictions, and activity bottleneck analysis with ROI calculations. Use this tab for proactive optimization, resource planning, and data-driven decision making.
+                                <span class="ml-2 text-xs px-2 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-[10px] font-bold">
+                                    PRO
                                 </span>
-                            </span>
+                                <span class="group relative ml-2">
+                                    <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        <strong>ML-Powered Deep Insights</strong><br/>
+                                        Machine learning features including smart stuck activity detection, capacity forecasting, ML-based duration predictions, and activity bottleneck analysis with ROI calculations. Use this tab for proactive optimization, resource planning, and data-driven decision making.
+                                    </span>
+                                </span>
                             </button>
 
-                            <!-- Tab 4: Trends & Planning -->
+                            <!-- Tab 4: Trends & Planning - Enterprise only -->
                             <button @click="activeTab = 'trends'"
                                     :class="activeTab === 'trends'
                                     ? 'border-purple-500 text-purple-600 dark:text-purple-400'
@@ -119,34 +128,36 @@
                                     class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
                                 <i data-lucide="trending-up" class="h-4 w-4 mr-2"></i>
                                 Trends & Planning
-                                <span class="group relative ml-2">
-                                <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
-                                <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
-                                    <strong>Historical Analysis & Forecasting</strong><br/>
-                                    Version performance history, weekly load patterns, and actionable recommendations. Use this tab for capacity planning, identifying optimal maintenance windows, detecting version regressions, and strategic infrastructure decisions. Essential for budget planning and change management.
+                                <span class="ml-2 text-xs px-2 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-[10px] font-bold">
+                                    PRO
                                 </span>
-                            </span>
+                                <span class="group relative ml-2">
+                                    <i data-lucide="help-circle" class="h-4 w-4 text-gray-400 cursor-help"></i>
+                                    <span class="hidden group-hover:block absolute left-0 top-6 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+                                        <strong>Historical Analysis & Forecasting</strong><br/>
+                                        Version performance history, weekly load patterns, and actionable recommendations. Use this tab for capacity planning, identifying optimal maintenance windows, detecting version regressions, and strategic infrastructure decisions. Essential for budget planning and change management.
+                                    </span>
+                                </span>
                             </button>
+                            {% endif %}
                         </nav>
                     </div>
 
                     <!-- Tab Content Container -->
                     <div>
-                        <!-- Tab 1: Health & Performance -->
+                        <!-- Tab 1: Health & Performance - Always included -->
                         {% include 'partials/tab_health_performance.html' %}
-                        <!-- End Health & Performance Tab -->
 
-                        <!-- Tab 2: Issues & Alerts -->
+                        <!-- Tab 2: Issues & Alerts - Always included -->
                         {% include 'partials/tab_issues_alerts.html' %}
-                        <!-- End Issues & Alerts Tab -->
 
-                        <!-- Tab 3: Advanced Analytics -->
+                        {% if ui_config.edition == 'enterprise' %}
+                        <!-- Tab 3: Advanced Analytics - Enterprise only -->
                         {% include 'partials/tab_advanced_analytics.html' %}
-                        <!-- End Advanced Analytics Tab -->
 
-                        <!-- Tab 4: Trends & Planning -->
+                        <!-- Tab 4: Trends & Planning - Enterprise only -->
                         {% include 'partials/tab_trends_planning.html' %}
-                        <!-- End Trends & Planning Tab -->
+                        {% endif %}
 
                     </div> <!-- End Tab Content Container -->
 
@@ -164,6 +175,81 @@
 
     </div>  <!-- End of AI Intelligence Layer -->
 
+    {% if ui_config.edition == 'oss' %}
+<!-- Enterprise Upgrade CTA - Collapsible -->
+<div x-data="{ upgradeExpanded: localStorage.getItem('upgradeExpanded') !== 'false' }"
+     class="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border-2 border-purple-200 dark:border-purple-800 shadow-lg overflow-hidden">
+
+    <!-- Header - Always Visible -->
+    <div class="flex items-center justify-between p-4 cursor-pointer"
+         @click="upgradeExpanded = !upgradeExpanded; localStorage.setItem('upgradeExpanded', upgradeExpanded)">
+        <div class="flex items-center space-x-3">
+            <i data-lucide="sparkles" class="h-6 w-6 text-purple-600 dark:text-purple-400"></i>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">
+                Unlock Advanced Analytics & Trends
+            </h3>
+            <span class="text-xs px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-bold">
+                ENTERPRISE
+            </span>
+        </div>
+
+        <!-- Collapse/Expand Button -->
+        <button class="p-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                @click.stop="upgradeExpanded = !upgradeExpanded; localStorage.setItem('upgradeExpanded', upgradeExpanded)">
+            <i data-lucide="chevron-down"
+               class="h-5 w-5 text-purple-600 dark:text-purple-400 transition-transform duration-200"
+               :class="{ 'rotate-180': upgradeExpanded }"></i>
+        </button>
+    </div>
+
+    <!-- Collapsible Content -->
+    <div x-show="upgradeExpanded"
+         x-collapse
+         class="px-4 pb-4">
+        <p class="text-gray-700 dark:text-gray-300 mb-4">
+            Get ML-powered capacity forecasting, duration predictions, activity bottleneck ROI analysis, version performance tracking, and comprehensive load patterns with our Enterprise Edition.
+        </p>
+
+        <ul class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4 text-sm text-gray-600 dark:text-gray-400">
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Smart Stuck Activity Detection</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>ML-Based Duration Predictions</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Capacity Forecasting</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Activity Bottleneck ROI Analysis</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Complete Version History Tracking</span>
+            </li>
+            <li class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-600"></i>
+                <span>Weekly Load Patterns & Heatmaps</span>
+            </li>
+        </ul>
+
+        <div class="flex items-center justify-between">
+            <a href="https://champa-bpmn.com/"
+               target="_blank"
+               class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg shadow-lg hover:from-purple-700 hover:to-pink-700 transition-all">
+                <span>Upgrade to Enterprise</span>
+                <i data-lucide="arrow-right" class="h-5 w-5 ml-2"></i>
+            </a>
+
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block extra_scripts %}
@@ -174,6 +260,8 @@
 
                 // Tab state
                 activeTab: 'health',
+
+                edition: '{{ ui_config.edition }}',
 
                 // AI/ML states
                 aiLoading: false,

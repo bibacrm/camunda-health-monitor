@@ -47,6 +47,9 @@ class Config:
     # AI/ML Configuration
     # ========================================================================
 
+    # Edition: 'oss' or 'enterprise'
+    EDITION = os.getenv('EDITION', 'oss')
+
     # Analysis Time Window
     # --------------------
     # How many days back to analyze for all AI insights
