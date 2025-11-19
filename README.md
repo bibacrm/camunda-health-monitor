@@ -28,8 +28,14 @@ Watch the feature demonstration on YouTube(enterprise version, but it is 80% the
 ![Dashboard Overview](docs/images/dashboard-full.png)
 *Real-time cluster monitoring with comprehensive metrics*
 
-![AI/ML Analytics Overview](docs/images/camunda_ai_ml_analysis.jpeg)
-*AI/ML Analysis tab*
+![AI/ML Analytics Overview](docs/images/ai_camunda_monitoring_health.jpeg)
+*AI/ML Analysis Health & Performance Tab*
+
+![AI/ML Analytics Issues](docs/images/ai_camunda_monitoring_alerts.jpeg)
+*AI/ML Analysis Issues & Alerts Tab*
+
+![AI/ML Analytics Modal](docs/images/ai_camunda_monitoring_modal.jpg)
+*AI/ML Analysis Modal Example*
 
 ### Light Theme
 ![Light Theme](docs/images/dashboard-light.png)
