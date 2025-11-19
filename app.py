@@ -191,16 +191,16 @@ def load_enterprise_extensions(app):
 
     # Try to import enterprise API routes
     try:
-        import routes.api_enterprise
+        from enterprise.routes import api_enterprise
         # Register the enterprise blueprint
-        app.register_blueprint(routes.api_enterprise.api_enterprise_bp)
+        app.register_blueprint(api_enterprise.api_enterprise_bp)
         logger.info("Enterprise AI endpoints loaded")
     except (ImportError, ModuleNotFoundError):
         logger.info("Enterprise features not available (OSS mode)")
 
     # Try to import enterprise AI service
     try:
-        import services.ai_service_enterprise
+        from enterprise.services import ai_service_enterprise
         logger.info("Enterprise AI service loaded")
     except (ImportError, ModuleNotFoundError):
         logger.info("Enterprise AI service not available (OSS mode)")
