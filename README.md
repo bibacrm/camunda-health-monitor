@@ -18,9 +18,9 @@ A lightweight, real-time monitoring dashboard for Camunda 7 based BPM Platform c
 
 Watch the feature demonstration on YouTube(enterprise version, but it is 80% the same):
 
-[![Camunda Health Monitor Demo](https://img.youtube.com/vi/WFQRxpmjRrE/0.jpg)](https://youtu.be/WFQRxpmjRrE)
+[![Camunda Health Monitor Demo](https://img.youtube.com/vi/0FZnLlUSzg8/0.jpg)](https://youtu.be/0FZnLlUSzg8)
 
-[▶️ Watch Demo: Champa Camunda 7 Health Monitor](https://youtu.be/WFQRxpmjRrE)
+[▶️ Watch Demo: Champa Camunda 7 Health Monitor](https://youtu.be/0FZnLlUSzg8)
 
 ## 📸 Screenshots
 
