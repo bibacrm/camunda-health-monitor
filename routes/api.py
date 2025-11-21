@@ -4,7 +4,7 @@ API routes - RESTful endpoints
 from flask import Blueprint, jsonify, current_app, request
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from helpers.error_handler import handle_errors
+from helpers.error_handler import handle_errors, safe_execute
 from helpers.db_helper import execute_query
 from services.camunda_service import collect_engine_health
 from services.database_service import collect_database_metrics
@@ -140,7 +140,9 @@ def api_ai_anomalies():
 @api_bp.route('/ai/incident-patterns')
 @handle_errors(context="Analyzing incident patterns")
 def api_ai_incident_patterns():
-    """Analyze and cluster incident patterns"""
+    """
+    Historical incident pattern analysis (keep for backward compatibility)
+    """
     ai = get_ai_analytics()
     lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
 
@@ -148,6 +150,194 @@ def api_ai_incident_patterns():
     patterns['timestamp'] = datetime.now().isoformat()
 
     return jsonify(patterns)
+
+
+@api_bp.route('/ai/incident-health')
+@handle_errors(context="Getting comprehensive incident health")
+def api_ai_incident_health():
+    """
+    Get comprehensive incident health analysis
+    Combines runtime + historical with severity scoring and recommendations
+    """
+    ai = get_ai_analytics()
+    lookback_days = int(current_app.config.get('AI_LOOKBACK_DAYS', 30))
+
+    result = ai.get_comprehensive_incident_health(lookback_days=lookback_days)
+    return jsonify(result)
+
+
+@api_bp.route('/ai/runtime-incidents')
+@handle_errors(context="Getting runtime incidents")
+def api_ai_runtime_incidents():
+    """
+    Get current runtime incidents with scoring
+    For real-time incident monitoring
+    """
+    ai = get_ai_analytics()
+
+    incidents = ai._get_runtime_incidents()
+    scored = ai._score_incident_severity(incidents)
+
+    return jsonify({
+        'incidents': scored,
+        'total_count': len(scored),
+        'by_severity': ai._group_by_severity(scored),
+        'by_process': ai._group_by_process(scored),
+        'timestamp': datetime.now().isoformat()
+    })
+
+
+@api_bp.route('/ai/incident-timeline')
+@handle_errors(context="Getting incident timeline")
+def api_ai_incident_timeline():
+    """
+    Get incident creation timeline for visualization
+    SMART: Automatically detects if history is enabled and uses best data source
+    """
+    ai = get_ai_analytics()
+    lookback_days = int(request.args.get('days',
+                                         current_app.config.get('INCIDENT_TIMELINE_DEFAULT_DAYS', 7)))
+    bucket_size = request.args.get('bucket',
+                                   current_app.config.get('INCIDENT_TIMELINE_BUCKET_SIZE', 'hour'))
+
+    # Determine time bucket based on request
+    if bucket_size == 'daily':
+        time_bucket = "DATE_TRUNC('day', create_time_)"
+        bucket_label = 'day'
+    else:  # hourly
+        time_bucket = "DATE_TRUNC('hour', create_time_)"
+        bucket_label = 'hour'
+
+    # TRY 1: Historical incidents (if history is enabled)
+    query_historical = f"""
+        SELECT 
+            {time_bucket} as time_bucket,
+            incident_type_,
+            COUNT(*) as incident_count,
+            COUNT(CASE WHEN end_time_ IS NULL THEN 1 END) as still_open_count
+        FROM act_hi_incident
+        WHERE create_time_ > NOW() - INTERVAL '{lookback_days} days'
+        GROUP BY {time_bucket}, incident_type_
+        ORDER BY time_bucket ASC
+    """
+
+    results = safe_execute(
+        lambda: execute_query(query_historical),
+        default_value=[],
+        context="Getting historical incident timeline"
+    )
+
+    data_source = 'historical'
+
+    # FALLBACK 1: If no historical data, try job logs
+    if not results or len(results) == 0:
+        current_app.logger.info("No historical incidents - using job logs for timeline")
+
+        if bucket_size == 'daily':
+            time_bucket_fallback = "DATE_TRUNC('day', timestamp_)"
+        else:
+            time_bucket_fallback = "DATE_TRUNC('hour', timestamp_)"
+
+        query_jobs = f"""
+            SELECT 
+                {time_bucket_fallback} as time_bucket,
+                COALESCE(job_def_type_, 'failedJob') as incident_type_,
+                COUNT(*) as incident_count,
+                COUNT(CASE WHEN job_retries_ = 0 THEN 1 END) as still_open_count
+            FROM act_hi_job_log
+            WHERE timestamp_ > NOW() - INTERVAL '{lookback_days} days'
+              AND job_exception_msg_ IS NOT NULL
+              AND job_exception_msg_ != ''
+            GROUP BY {time_bucket_fallback}, job_def_type_
+            ORDER BY {time_bucket_fallback} ASC
+        """
+
+        results = safe_execute(
+            lambda: execute_query(query_jobs),
+            default_value=[],
+            context="Getting job exception timeline"
+        )
+        data_source = 'job_logs'
+
+    # FALLBACK 2: If still no data, try runtime incidents grouped by time
+    if not results or len(results) == 0:
+        current_app.logger.info("No job logs - using runtime incidents for timeline")
+
+        # For runtime incidents, we need to estimate creation time
+        # We'll use incident_timestamp_ as the creation time
+        if bucket_size == 'daily':
+            time_bucket_runtime = "DATE_TRUNC('day', incident_timestamp_)"
+        else:
+            time_bucket_runtime = "DATE_TRUNC('hour', incident_timestamp_)"
+
+        query_runtime = f"""
+            SELECT 
+                {time_bucket_runtime} as time_bucket,
+                incident_type_,
+                COUNT(*) as incident_count,
+                COUNT(*) as still_open_count  -- All runtime incidents are open
+            FROM act_ru_incident
+            WHERE incident_timestamp_ > NOW() - INTERVAL '{lookback_days} days'
+            GROUP BY {time_bucket_runtime}, incident_type_
+            ORDER BY {time_bucket_runtime} ASC
+        """
+
+        results = safe_execute(
+            lambda: execute_query(query_runtime),
+            default_value=[],
+            context="Getting runtime incident timeline"
+        )
+        data_source = 'runtime'
+
+    # Transform for charting (group by time, then by type)
+    timeline_data = {}
+    incident_types = set()
+
+    for row in results:
+        time_key = row['time_bucket'].isoformat() if row.get('time_bucket') else 'unknown'
+        inc_type = row.get('incident_type_', 'unknown')
+        count = int(row.get('incident_count', 0))
+        still_open = int(row.get('still_open_count', 0))
+
+        if time_key not in timeline_data:
+            timeline_data[time_key] = {
+                'total': 0,
+                'by_type': {},
+                'still_open': 0
+            }
+
+        timeline_data[time_key]['total'] += count
+        timeline_data[time_key]['by_type'][inc_type] = count
+        timeline_data[time_key]['still_open'] += still_open
+        incident_types.add(inc_type)
+
+    # Convert to arrays for charting
+    labels = sorted(timeline_data.keys())
+    datasets = {}
+
+    for inc_type in incident_types:
+        datasets[inc_type] = [
+            timeline_data[label]['by_type'].get(inc_type, 0)
+            for label in labels
+        ]
+
+    total_series = [timeline_data[label]['total'] for label in labels]
+    open_series = [timeline_data[label]['still_open'] for label in labels]
+
+    return jsonify({
+        'labels': labels,
+        'datasets': datasets,
+        'total_series': total_series,
+        'open_series': open_series,
+        'incident_types': list(incident_types),
+        'bucket_size': bucket_size,
+        'lookback_days': lookback_days,
+        'data_points': len(labels),
+        'data_source': data_source,
+        'history_enabled': data_source == 'historical',
+        'message': f'Timeline generated from {data_source} data with {len(labels)} data points',
+        'timestamp': datetime.now().isoformat()
+    })
 
 
 @api_bp.route('/ai/bottlenecks')
@@ -323,7 +513,7 @@ def api_ai_insights():
     return jsonify(insights)
 
 
-# ===== NEW PROFESSIONAL ANALYSIS ENDPOINTS =====
+# ===== Professional analysis endpoints =====
 
 @api_bp.route('/ai/process-categories')
 @handle_errors(context="Getting process categories")

@@ -65,18 +65,9 @@ test_*.py
 Dockerfile
 docker-compose.yml
 
-# Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
-
 # Testing
 tests/
-test_*.py
 *_test.py
-.pytest_cache/
-.coverage
-htmlcov/
 
 # CI/CD
 .github/
@@ -84,8 +75,6 @@ htmlcov/
 .travis.yml
 
 # Temporary files
-*.tmp
-*.bak
 .cache/
 
 # OS

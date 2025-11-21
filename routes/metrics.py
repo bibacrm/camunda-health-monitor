@@ -235,9 +235,6 @@ def _collect_ai_metrics_for_prometheus(cluster_data):
 
     Args:
         cluster_data: Already collected cluster health data from collect_engine_health()
-
-    Note: This uses fast aggregation queries instead of heavy AI processing
-          to keep Prometheus scraping fast (< 100ms added overhead)
     """
     from services.ai_service import get_ai_analytics
     from helpers.db_helper import execute_query

@@ -29,7 +29,7 @@ class Config:
         'host': os.getenv('DB_HOST', 'localhost'),
         'port': os.getenv('DB_PORT', '5432'),
         'connect_timeout': 5,  # Fail fast - 5 seconds max
-        'options': '-c statement_timeout=30000',  # 30 second query timeout
+        'options': '-c statement_timeout=60000',  # 60 second query timeout
         'keepalives': 1,
         'keepalives_idle': 5,
         'keepalives_interval': 2,
@@ -113,7 +113,6 @@ class Config:
 
     # Capacity forecasting: training data days
     AI_CAPACITY_TRAINING_DAYS = int(os.getenv('AI_CAPACITY_TRAINING_DAYS', '90'))
-
 
     # Variable impact: minimum impact percentage to report
     AI_MIN_VARIABLE_IMPACT_PCT = int(os.getenv('AI_MIN_VARIABLE_IMPACT_PCT', '10'))
@@ -280,6 +279,63 @@ class Config:
     # ------------------------
     # Fallback threshold for stuck detection when no historical data (in seconds, 24h)
     STUCK_ACTIVITY_FALLBACK_THRESHOLD_SECONDS = int(os.getenv('STUCK_ACTIVITY_FALLBACK_THRESHOLD_SECONDS', '86400'))
+
+    # ========================================================================
+    # Enhanced Incident Analysis Configuration
+    # ========================================================================
+
+    # Incident Severity Scoring
+    # --------------------------
+    # Age thresholds for severity classification (in hours)
+    INCIDENT_SEVERITY_CRITICAL_AGE_HOURS = int(os.getenv('INCIDENT_SEVERITY_CRITICAL_AGE_HOURS', '72'))  # 3 days
+    INCIDENT_SEVERITY_HIGH_AGE_HOURS = int(os.getenv('INCIDENT_SEVERITY_HIGH_AGE_HOURS', '24'))  # 1 day
+    INCIDENT_SEVERITY_MEDIUM_AGE_HOURS = int(os.getenv('INCIDENT_SEVERITY_MEDIUM_AGE_HOURS', '12'))  # 12 hours
+    INCIDENT_SEVERITY_WARNING_AGE_HOURS = int(os.getenv('INCIDENT_SEVERITY_WARNING_AGE_HOURS', '4'))  # 4 hours
+
+    # Severity score thresholds (0-100)
+    INCIDENT_SEVERITY_CRITICAL_THRESHOLD = int(os.getenv('INCIDENT_SEVERITY_CRITICAL_THRESHOLD', '80'))
+    INCIDENT_SEVERITY_HIGH_THRESHOLD = int(os.getenv('INCIDENT_SEVERITY_HIGH_THRESHOLD', '60'))
+    INCIDENT_SEVERITY_MEDIUM_THRESHOLD = int(os.getenv('INCIDENT_SEVERITY_MEDIUM_THRESHOLD', '40'))
+
+    # Base severity scores by incident type
+    INCIDENT_TYPE_SEVERITY_MAP = {
+        'failedJob': int(os.getenv('INCIDENT_TYPE_FAILED_JOB_SEVERITY', '50')),
+        'failedExternalTask': int(os.getenv('INCIDENT_TYPE_EXTERNAL_TASK_SEVERITY', '45')),
+        'errorEventSubprocess': int(os.getenv('INCIDENT_TYPE_ERROR_EVENT_SEVERITY', '40')),
+        'messageBoundaryEvent': int(os.getenv('INCIDENT_TYPE_MESSAGE_BOUNDARY_SEVERITY', '35')),
+        'timerStartEvent': int(os.getenv('INCIDENT_TYPE_TIMER_START_SEVERITY', '30'))
+    }
+
+    # Recurring Incident Detection
+    # -----------------------------
+    # Similarity threshold for matching incidents (0.0-1.0, 0.7 = 70% match)
+    INCIDENT_SIMILARITY_THRESHOLD = float(os.getenv('INCIDENT_SIMILARITY_THRESHOLD', '0.7'))
+
+    # Resolution rate threshold for flagging as problematic (percentage)
+    RECURRING_LOW_RESOLUTION_THRESHOLD = int(os.getenv('RECURRING_LOW_RESOLUTION_THRESHOLD', '50'))
+
+    # Incident Health Assessment
+    # ---------------------------
+    # Number of critical incidents to trigger critical health status
+    INCIDENT_HEALTH_CRITICAL_COUNT = int(os.getenv('INCIDENT_HEALTH_CRITICAL_COUNT', '5'))
+
+    # Active incident count to trigger degraded status
+    INCIDENT_HEALTH_DEGRADED_COUNT = int(os.getenv('INCIDENT_HEALTH_DEGRADED_COUNT', '10'))
+
+    # Minimum resolution rate for healthy status (percentage)
+    INCIDENT_HEALTH_MIN_RESOLUTION_RATE = int(os.getenv('INCIDENT_HEALTH_MIN_RESOLUTION_RATE', '60'))
+
+    # Timeline Visualization
+    # ----------------------
+    # Default days for timeline view
+    INCIDENT_TIMELINE_DEFAULT_DAYS = int(os.getenv('INCIDENT_TIMELINE_DEFAULT_DAYS', '7'))
+
+    # Time bucket granularity (hour, day, week)
+    INCIDENT_TIMELINE_BUCKET_SIZE = os.getenv('INCIDENT_TIMELINE_BUCKET_SIZE', 'hour')
+
+    # Maximum data points in timeline chart
+    INCIDENT_TIMELINE_MAX_POINTS = int(os.getenv('INCIDENT_TIMELINE_MAX_POINTS', '168'))  # 7 days * 24 hours
+
 
     @staticmethod
     def load_camunda_nodes():
