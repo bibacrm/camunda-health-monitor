@@ -18,9 +18,9 @@ A lightweight, real-time monitoring dashboard for Camunda 7 based BPM Platform c
 
 Watch the feature demonstration on YouTube(enterprise version, but it is 80% the same):
 
-[![Camunda Health Monitor Demo](https://img.youtube.com/vi/0FZnLlUSzg8/0.jpg)](https://youtu.be/0FZnLlUSzg8)
+[![Camunda Health Monitor Demo](https://img.youtube.com/vi/3FImwwJ5IX8/0.jpg)](https://youtu.be/3FImwwJ5IX8)
 
-[▶️ Watch Demo: Champa Camunda 7 Health Monitor](https://youtu.be/0FZnLlUSzg8)
+[▶️ Watch Demo: Champa Camunda 7 Health Monitor](https://youtu.be/3FImwwJ5IX8)
 
 ## 📸 Screenshots
 
@@ -31,7 +31,7 @@ Watch the feature demonstration on YouTube(enterprise version, but it is 80% the
 ![AI/ML Analytics Overview](docs/images/ai_camunda_monitoring_health.jpeg)
 *AI/ML Analysis Health & Performance Tab*
 
-![AI/ML Analytics Issues](docs/images/ai_camunda_monitoring_alerts.jpeg)
+![AI/ML Analytics Issues](docs/images/camunda_health_monitor_incidents_intelligence.png)
 *AI/ML Analysis Issues & Alerts Tab*
 
 ![AI/ML Analytics Modal](docs/images/ai_camunda_monitoring_modal.jpg)
@@ -76,7 +76,7 @@ CAMUNDA_NODE_2_URL=http://PUT_YOUR_CAMUNDA_BPM_2_NODE_HOST_HERE/engine-rest
 CAMUNDA_API_USER=
 CAMUNDA_API_PASSWORD=
 
-# Optional: JMX/Micrometer Exporter Endpoints
+# JMX/Micrometer Exporter Endpoints
 JMX_NODE_1_URL=http://PUT_YOUR_CAMUNDA_BPM_1_NODE_JVM_METRICS_HOST_HERE/metrics
 JMX_NODE_2_URL=http://PUT_YOUR_CAMUNDA_BPM_2_NODE_JVM_METRICS_HOST_HERE/metrics
 
