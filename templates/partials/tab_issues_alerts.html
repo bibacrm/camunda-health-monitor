@@ -1,8 +1,676 @@
 <div x-show="activeTab === 'issues'" x-transition>
 
+    <!-- Incident Health Dashboard -->
+    <div class="bg-gradient-to-br from-orange-50 via-red-50 to-pink-50 dark:from-orange-900/20 dark:via-red-900/20 dark:to-pink-900/20 rounded-xl p-6 mb-6 border-2 border-orange-200 dark:border-orange-800 shadow-xl"
+         x-intersect.once="!incidentHealth && !incidentHealthLoading && loadIncidentHealth()">
+
+        <!-- Header Section -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-4">
+                <div class="p-3 bg-white dark:bg-gray-800 rounded-xl shadow-md">
+                    <i data-lucide="shield-alert" class="h-8 w-8 text-orange-600 dark:text-orange-400"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Incident Intelligence Center</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Real-time incident monitoring and pattern analysis</p>
+                </div>
+                <span class="group relative">
+                    <i data-lucide="help-circle" class="h-5 w-5 text-gray-400 cursor-help"></i>
+                    <span class="hidden group-hover:block absolute left-0 top-8 w-96 p-4 bg-gray-900 text-white text-xs rounded-lg shadow-2xl z-50">
+                        <strong class="text-orange-400">Adaptive Intelligence</strong><br/>
+                        Automatically detects your Camunda configuration and provides:<br/>
+                        • Real-time active incident tracking<br/>
+                        • Historical pattern analysis (when available)<br/>
+                        • Recurring issue detection<br/>
+                        • Root cause categorization<br/>
+                        • Actionable recommendations
+                    </span>
+                </span>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <!-- Health Status Badge -->
+                <template x-if="incidentHealth">
+                    <div class="flex items-center gap-3">
+                        <span class="flex items-center items-end">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-400">System Health</span>
+                            <span class="text-xs px-4 py-2 ms-2 rounded-full font-bold shadow-lg"
+                                  :class="{
+                                      'bg-gradient-to-r from-red-500 to-red-600 text-white animate-pulse': incidentHealth.health_status === 'critical',
+                                      'bg-gradient-to-r from-orange-500 to-orange-600 text-white': incidentHealth.health_status === 'degraded',
+                                      'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white': incidentHealth.health_status === 'warning',
+                                      'bg-gradient-to-r from-green-500 to-green-600 text-white': incidentHealth.health_status === 'healthy'
+                                  }"
+                                  x-text="incidentHealth.health_status.toUpperCase()"></span>
+                        </span>
+
+                        <!-- Configuration Indicators -->
+                        <div class="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg shadow text-xs">
+                            <i :data-lucide="incidentHealth.configuration?.history_enabled ? 'database' : 'hard-drive'"
+                               class="h-4 w-4"
+                               :class="{
+                                   'text-green-600 dark:text-green-400': incidentHealth.configuration?.history_enabled,
+                                   'text-blue-600 dark:text-blue-400': !incidentHealth.configuration?.history_enabled
+                               }"></i>
+                            <span class="font-medium"
+                                  :class="{
+                                       'text-green-700 dark:text-green-500': incidentHealth.configuration?.history_enabled,
+                                       'text-blue-700 dark:text-blue-500': !incidentHealth.configuration?.history_enabled
+                                   }"
+                                  x-text="incidentHealth.configuration?.history_enabled ? 'Full History' : 'Runtime Mode'"></span>
+                            <span class="text-gray-400">•</span>
+                            <span class="text-gray-600 dark:text-gray-400"
+                                  x-text="incidentHealth.configuration?.total_data_points || 0"></span>
+                            <span class="text-gray-500">data points</span>
+                        </div>
+
+                        <!-- Quick Stats -->
+                        <div class="px-4 py-2 bg-white dark:bg-gray-800 rounded-lg shadow">
+                            <div class="flex items-center gap-4 text-sm">
+                                <div>
+                                    <span class="font-bold text-orange-600 dark:text-orange-400"
+                                          x-text="incidentHealth.current_state?.total_active || 0"></span>
+                                    <span class="text-gray-500 ml-1">active</span>
+                                </div>
+                                <span class="text-gray-300">|</span>
+                                <div>
+                                    <span class="font-bold text-red-600 dark:text-red-400"
+                                          x-text="incidentHealth.recurring_issues?.length || 0"></span>
+                                    <span class="text-gray-500 ml-1">recurring</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Export Button -->
+                <button @click="exportIncidentsToCsv()"
+                        :disabled="!incidentHealth || incidentHealthLoading"
+                        class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow transition-all disabled:opacity-50">
+                    <i data-lucide="download" class="h-4 w-4 mr-2"></i>
+                    Export
+                </button>
+
+                <!-- Refresh Button -->
+                <button @click="loadIncidentHealth()"
+                        :disabled="incidentHealthLoading"
+                        class="inline-flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 shadow-lg transition-all disabled:opacity-50">
+                    <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"
+                       :class="{ 'animate-spin': incidentHealthLoading }"></i>
+                    <span x-text="incidentHealthLoading ? 'Analyzing...' : 'Refresh'"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <template x-if="incidentHealthLoading">
+            <div class="text-center py-16">
+                <div class="relative inline-flex">
+                    <div class="animate-spin h-16 w-16 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <i data-lucide="activity" class="h-8 w-8 text-orange-600"></i>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-4 font-medium">Analyzing incident patterns...</p>
+                <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">Scanning runtime data and historical patterns</p>
+            </div>
+        </template>
+
+        <!-- Main Content -->
+        <template x-if="incidentHealth && !incidentHealthLoading">
+            <div class="space-y-6">
+
+                <!-- KPI Cards Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Active Incidents Card -->
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border-l-4 border-orange-500 shadow-lg hover:shadow-xl transition-shadow">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Active Incidents</span>
+                            <div class="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                                <i data-lucide="alert-circle" class="h-5 w-5 text-orange-600 dark:text-orange-400"></i>
+                            </div>
+                        </div>
+                        <div class="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2"
+                             x-text="incidentHealth.current_state?.total_active || 0"></div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded font-semibold"
+                                  x-text="(incidentHealth.current_state?.by_severity?.critical || 0) + ' critical'"></span>
+                            <span class="text-gray-400">•</span>
+                            <span class="text-gray-600 dark:text-gray-400"
+                                  x-text="(incidentHealth.current_state?.oldest_incident_hours || 0).toFixed(1) + 'h oldest'"></span>
+                        </div>
+                    </div>
+
+                    <!-- Recurring Issues Card -->
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border-l-4 border-red-500 shadow-lg hover:shadow-xl transition-shadow">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Recurring Issues</span>
+                            <div class="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                                <i data-lucide="repeat" class="h-5 w-5 text-red-600 dark:text-red-400"></i>
+                            </div>
+                        </div>
+                        <div class="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2"
+                             x-text="incidentHealth.recurring_issues?.length || 0"></div>
+                        <div class="text-xs font-semibold text-red-600 dark:text-red-400">
+                            <template x-if="(incidentHealth.recurring_issues?.length || 0) > 0">
+                                <span>🔴 Require permanent fixes</span>
+                            </template>
+                            <template x-if="(incidentHealth.recurring_issues?.length || 0) === 0">
+                                <span class="text-green-600 dark:text-green-400">✓ No recurring patterns</span>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Resolution Rate Card -->
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border-l-4 border-blue-500 shadow-lg hover:shadow-xl transition-shadow">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Resolution Rate</span>
+                            <div class="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                <i data-lucide="check-circle" class="h-5 w-5 text-blue-600 dark:text-blue-400"></i>
+                            </div>
+                        </div>
+                        <div class="text-4xl font-bold"
+                             :class="{
+                                 'text-green-600 dark:text-green-400': (incidentHealth.historical_trends?.resolution_rate_pct || 0) >= 80,
+                                 'text-yellow-600 dark:text-yellow-400': (incidentHealth.historical_trends?.resolution_rate_pct || 0) >= 60 && (incidentHealth.historical_trends?.resolution_rate_pct || 0) < 80,
+                                 'text-red-600 dark:text-red-400': (incidentHealth.historical_trends?.resolution_rate_pct || 0) < 60
+                             }"
+                             x-text="(incidentHealth.historical_trends?.resolution_rate_pct || 0) + '%'"></div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                            <template x-if="incidentHealth.historical_trends?.history_enabled">
+                                <span x-text="'Last ' + (incidentHealth.analysis_window_days || 30) + ' days'"></span>
+                            </template>
+                            <template x-if="!incidentHealth.historical_trends?.history_enabled">
+                                <span class="text-blue-600">Runtime data</span>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Action Items Card -->
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border-l-4 border-purple-500 shadow-lg hover:shadow-xl transition-shadow">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Action Items</span>
+                            <div class="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                                <i data-lucide="lightbulb" class="h-5 w-5 text-purple-600 dark:text-purple-400"></i>
+                            </div>
+                        </div>
+                        <div class="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2"
+                             x-text="incidentHealth.recommendations?.length || 0"></div>
+                        <div class="text-xs">
+                            <template x-if="(incidentHealth.recommendations?.filter(r => r.priority === 'critical').length || 0) > 0">
+                                <span class="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded font-semibold"
+                                      x-text="incidentHealth.recommendations.filter(r => r.priority === 'critical').length + ' urgent'"></span>
+                            </template>
+                            <template x-if="(incidentHealth.recommendations?.filter(r => r.priority === 'critical').length || 0) === 0">
+                                <span class="text-gray-500">Routine monitoring</span>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline Visualization -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg">
+                                <i data-lucide="trending-up" class="h-5 w-5 text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Incident Timeline</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Creation patterns over time</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500 mr-2">Granularity:</span>
+                            <button @click="timelineView = 'hourly'; loadIncidentTimeline()"
+                                    :class="timelineView === 'hourly' ? 'bg-orange-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">
+                                Hourly
+                            </button>
+                            <button @click="timelineView = 'daily'; loadIncidentTimeline()"
+                                    :class="timelineView === 'daily' ? 'bg-orange-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">
+                                Daily
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="relative">
+                        <div class="h-64" x-ref="incidentTimeline">
+                            <template x-if="incidentTimelineData && incidentTimelineData.data_points > 0">
+                                <canvas x-ref="timelineCanvas"></canvas>
+                            </template>
+                            <template x-if="!incidentTimelineData || incidentTimelineData.data_points === 0">
+                                <div class="h-full flex flex-col items-center justify-center text-gray-400">
+                                    <i data-lucide="bar-chart-2" class="h-12 w-12 mb-3"></i>
+                                    <p class="text-sm font-medium">No timeline data available</p>
+                                    <p class="text-xs mt-1">No incidents in the selected time period</p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Timeline Stats -->
+                        <template x-if="incidentTimelineData && incidentTimelineData.data_points > 0">
+                            <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                    <div class="text-2xl font-bold text-gray-900 dark:text-gray-100"
+                                         x-text="incidentTimelineData.total_series.reduce((a,b) => a+b, 0)"></div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Total Incidents</div>
+                                </div>
+                                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                    <div class="text-2xl font-bold text-gray-900 dark:text-gray-100"
+                                         x-text="Math.max(...(incidentTimelineData.total_series || [0]))"></div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Peak Rate</div>
+                                </div>
+                                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                    <div class="text-2xl font-bold text-gray-900 dark:text-gray-100"
+                                         x-text="(incidentTimelineData.total_series.reduce((a,b) => a+b, 0) / incidentTimelineData.data_points).toFixed(1)"></div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Avg per Period</div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Tabbed Details Section -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+                    <!-- Enhanced Tab Navigation -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                        <nav class="flex -mb-px" role="tablist">
+                            <button @click="incidentTab = 'current'"
+                                    :class="incidentTab === 'current'
+                                    ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-gray-800'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+                                    class="group relative whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-all">
+                                <span class="flex items-center gap-2">
+                                    <i data-lucide="alert-circle" class="h-4 w-4"></i>
+                                    Active Incidents
+                                    <span class="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold"
+                                          :class="incidentTab === 'current' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'"
+                                          x-text="incidentHealth.current_state?.total_active || 0"></span>
+                                </span>
+                            </button>
+
+                            <button @click="incidentTab = 'recurring'"
+                                    :class="incidentTab === 'recurring'
+                                    ? 'border-red-500 text-red-600 dark:text-red-400 bg-white dark:bg-gray-800'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+                                    class="group relative whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-all">
+                                <span class="flex items-center gap-2">
+                                    <i data-lucide="repeat" class="h-4 w-4"></i>
+                                    Recurring Issues
+                                    <span class="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold"
+                                          :class="incidentTab === 'recurring' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'"
+                                          x-text="incidentHealth.recurring_issues?.length || 0"></span>
+                                </span>
+                                <template x-if="(incidentHealth.recurring_issues?.length || 0) > 0">
+                                    <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
+                                </template>
+                            </button>
+
+                            <button @click="incidentTab = 'patterns'"
+                                    :class="incidentTab === 'patterns'
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+                                    class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-all">
+                                <span class="flex items-center gap-2">
+                                    <i data-lucide="pie-chart" class="h-4 w-4"></i>
+                                    Historical Patterns
+                                    <span class="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold"
+                                          :class="incidentTab === 'patterns' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'"
+                                          x-text="incidentHealth.historical_trends?.patterns?.length || 0"></span>
+                                </span>
+                            </button>
+
+                            <button @click="incidentTab = 'recommendations'"
+                                    :class="incidentTab === 'recommendations'
+                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400 bg-white dark:bg-gray-800'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+                                    class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-all">
+                                <span class="flex items-center gap-2">
+                                    <i data-lucide="lightbulb" class="h-4 w-4"></i>
+                                    Recommendations
+                                    <span class="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold"
+                                          :class="incidentTab === 'recommendations' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'"
+                                          x-text="incidentHealth.recommendations?.length || 0"></span>
+                                </span>
+                            </button>
+                        </nav>
+                    </div>
+
+                    <!-- Tab Content with better styling -->
+                    <div class="p-6 max-h-[600px] overflow-y-auto custom-scrollbar">
+                        <!-- Active Incidents Tab - Enhanced -->
+                        <div x-show="incidentTab === 'current'" x-transition>
+                            <template x-if="incidentHealth.current_state?.active_incidents?.length > 0">
+                                <div class="space-y-3">
+                                    <template x-for="(incident, index) in incidentHealth.current_state.active_incidents.slice(0, 20)"
+                                              :key="incident.incident_id">
+                                        <div class="group p-4 rounded-xl border-l-4 cursor-pointer transition-all hover:shadow-lg"
+                                             :class="{
+                                                 'bg-red-50 dark:bg-red-900/10 border-red-500 hover:bg-red-100 dark:hover:bg-red-900/20': incident.severity === 'critical',
+                                                 'bg-orange-50 dark:bg-orange-900/10 border-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/20': incident.severity === 'high',
+                                                 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-500 hover:bg-yellow-100 dark:hover:bg-yellow-900/20': incident.severity === 'medium',
+                                                 'bg-blue-50 dark:bg-blue-900/10 border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/20': incident.severity === 'low'
+                                             }"
+                                             @click="selectedIncident = incident; $refs.enhancedIncidentModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
+
+                                            <div class="flex items-start justify-between gap-4">
+                                                <div class="flex-1 min-w-0">
+                                                    <!-- Header Row -->
+                                                    <div class="flex items-center gap-2 mb-2">
+                                                        <span class="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate"
+                                                              x-text="`#${index + 1} - ${incident.incident_type_}`"></span>
+                                                        <span class="text-xs px-2.5 py-1 rounded-full font-bold"
+                                                              :class="{
+                                                                  'bg-red-600 text-white': incident.severity === 'critical',
+                                                                  'bg-orange-600 text-white': incident.severity === 'high',
+                                                                  'bg-yellow-600 text-white': incident.severity === 'medium',
+                                                                  'bg-blue-600 text-white': incident.severity === 'low'
+                                                              }"
+                                                              x-text="incident.severity.toUpperCase()"></span>
+                                                        <span class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
+                                                              x-text="incident.root_cause"></span>
+                                                    </div>
+
+                                                    <!-- Error Message -->
+                                                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-2 line-clamp-2"
+                                                       x-text="incident.incident_msg_"></p>
+
+                                                    <!-- Details Row -->
+                                                    <div class="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                                        <span class="flex items-center gap-1">
+                                                            <i data-lucide="package" class="h-3 w-3"></i>
+                                                            <span x-text="incident.process_key"></span>
+                                                        </span>
+                                                        <span>•</span>
+                                                        <span class="flex items-center gap-1">
+                                                            <i data-lucide="clock" class="h-3 w-3"></i>
+                                                            <span x-text="incident.age_hours.toFixed(1) + 'h'"></span>
+                                                        </span>
+                                                        <template x-if="incident.business_key && incident.business_key !== 'N/A'">
+                                                            <span>•</span>
+                                                            <span class="flex items-center gap-1 truncate max-w-xs">
+                                                                <i data-lucide="key" class="h-3 w-3"></i>
+                                                                <code class="text-xs" x-text="incident.business_key"></code>
+                                                            </span>
+                                                        </template>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Severity Score Badge -->
+                                                <div class="flex flex-col items-center gap-1">
+                                                    <div class="text-2xl font-bold"
+                                                         :class="{
+                                                             'text-red-600 dark:text-red-400': incident.severity === 'critical',
+                                                             'text-orange-600 dark:text-orange-400': incident.severity === 'high',
+                                                             'text-yellow-600 dark:text-yellow-400': incident.severity === 'medium',
+                                                             'text-blue-600 dark:text-blue-400': incident.severity === 'low'
+                                                         }"
+                                                         x-text="incident.severity_score"></div>
+                                                    <div class="text-[10px] text-gray-500 uppercase font-medium">score</div>
+                                                    <i data-lucide="chevron-right" class="h-4 w-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template x-if="!incidentHealth.current_state?.active_incidents?.length">
+                                <div class="text-center py-16">
+                                    <div class="inline-flex items-center justify-center w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full mb-4">
+                                        <i data-lucide="check-circle" class="h-10 w-10 text-green-500 dark:text-green-400"></i>
+                                    </div>
+                                    <p class="text-lg font-bold text-green-600 dark:text-green-400 mb-2">No Active Incidents!</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">All systems operating normally</p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Recurring Issues Tab - Enhanced -->
+                        <div x-show="incidentTab === 'recurring'" x-transition>
+                            <template x-if="incidentHealth.recurring_issues?.length > 0">
+                                <div class="space-y-3">
+                                    <template x-for="(issue, index) in incidentHealth.recurring_issues" :key="issue.incident_id">
+                                        <div class="p-5 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-l-4 border-red-600 rounded-xl cursor-pointer hover:shadow-lg transition-all"
+                                             @click="selectedRecurringIssue = issue; $refs.recurringIssueModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
+
+                                            <div class="flex items-start justify-between mb-3">
+                                                <div class="flex-1">
+                                                    <div class="flex items-center gap-2 mb-2">
+                                                        <span class="inline-flex items-center px-2 py-1 bg-red-600 text-white rounded-full text-xs font-bold">
+                                                            <i data-lucide="repeat" class="h-3 w-3 mr-1"></i>
+                                                            RECURRING
+                                                        </span>
+                                                        <span class="text-sm font-bold text-red-800 dark:text-red-300"
+                                                              x-text="`#${index + 1} - ${issue.incident_type}`"></span>
+                                                    </div>
+                                                    <p class="text-sm text-gray-700 dark:text-gray-300 mb-3 line-clamp-2"
+                                                       x-text="issue.error_message"></p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Stats Grid -->
+                                            <div class="grid grid-cols-4 gap-3 mb-3">
+                                                <div class="bg-white dark:bg-gray-800 p-3 rounded-lg text-center">
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Historical</div>
+                                                    <div class="text-lg font-bold text-red-600 dark:text-red-400"
+                                                         x-text="issue.historical_occurrences + 'x'"></div>
+                                                </div>
+                                                <div class="bg-white dark:bg-gray-800 p-3 rounded-lg text-center">
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Resolution</div>
+                                                    <div class="text-lg font-bold"
+                                                         :class="issue.historical_resolution_rate > 70 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+                                                         x-text="issue.historical_resolution_rate.toFixed(0) + '%'"></div>
+                                                </div>
+                                                <div class="bg-white dark:bg-gray-800 p-3 rounded-lg text-center">
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Currently</div>
+                                                    <div class="text-lg font-bold text-orange-600 dark:text-orange-400"
+                                                         x-text="safeNumber(issue.hours_open, 1) + 'h'"></div>
+                                                </div>
+                                                <div class="bg-white dark:bg-gray-800 p-3 rounded-lg text-center">
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Cause</div>
+                                                    <div class="text-xs font-bold text-purple-600 dark:text-purple-400 truncate"
+                                                         x-text="issue.root_cause"></div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Recommendation -->
+                                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                                                <div class="flex items-start gap-2">
+                                                    <i data-lucide="alert-triangle" class="h-4 w-4 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5"></i>
+                                                    <p class="text-xs text-gray-700 dark:text-gray-300"
+                                                       x-text="issue.recommendation"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template x-if="!incidentHealth.recurring_issues?.length">
+                                <div class="text-center py-16">
+                                    <div class="inline-flex items-center justify-center w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full mb-4">
+                                        <i data-lucide="check-circle" class="h-10 w-10 text-green-500 dark:text-green-400"></i>
+                                    </div>
+                                    <p class="text-lg font-bold text-green-600 dark:text-green-400 mb-2">No Recurring Issues</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">No patterns of repeated incidents detected</p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Historical Patterns Tab - Enhanced -->
+                        <div x-show="incidentTab === 'patterns'" x-transition>
+                            <template x-if="incidentHealth.historical_trends?.patterns?.length > 0">
+                                <div class="space-y-4">
+                                    <!-- Summary Stats -->
+                                    <div class="grid grid-cols-3 gap-4 mb-6">
+                                        <div class="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                                            <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Analyzed</div>
+                                            <div class="text-2xl font-bold text-blue-600 dark:text-blue-400"
+                                                 x-text="incidentHealth.historical_trends.total_incidents"></div>
+                                        </div>
+                                        <div class="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-4 rounded-xl border border-green-200 dark:border-green-800">
+                                            <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">Resolution Rate</div>
+                                            <div class="text-2xl font-bold text-green-600 dark:text-green-400"
+                                                 x-text="incidentHealth.historical_trends.resolution_rate_pct + '%'"></div>
+                                        </div>
+                                        <div class="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 p-4 rounded-xl border border-orange-200 dark:border-orange-800">
+                                            <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">Avg Resolution</div>
+                                            <div class="text-2xl font-bold text-orange-600 dark:text-orange-400"
+                                                 x-text="incidentHealth.historical_trends.avg_resolution_time_hours.toFixed(1) + 'h'"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Pattern List -->
+                                    <template x-for="(pattern, index) in incidentHealth.historical_trends.patterns"
+                                              :key="pattern.incident_type + pattern.error_message">
+                                        <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border-l-4 border-blue-500 cursor-pointer hover:shadow-lg transition-all"
+                                             @click="selectedIncident = pattern; $refs.incidentModal.classList.remove('hidden'); $nextTick(() => lucide.createIcons())">
+                                            <div class="flex items-start justify-between mb-2">
+                                                <div class="flex-1">
+                                                    <div class="flex items-center gap-2 mb-1">
+                                                        <span class="font-semibold text-sm text-gray-900 dark:text-gray-100"
+                                                              x-text="`#${index + 1} - ${pattern.incident_type}`"></span>
+                                                        <span class="text-xs px-2 py-1 bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-200 rounded font-medium"
+                                                              x-text="pattern.root_cause"></span>
+                                                    </div>
+                                                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-2 line-clamp-2"
+                                                       x-text="pattern.error_message"></p>
+                                                </div>
+                                                <span class="text-lg font-bold text-blue-600 dark:text-blue-400 ml-3"
+                                                      x-text="pattern.occurrence_count + 'x'"></span>
+                                            </div>
+
+                                            <div class="flex items-center justify-between text-xs">
+                                                <div class="flex items-center gap-3 text-gray-500 dark:text-gray-400">
+                                                    <span x-text="pattern.frequency_per_day.toFixed(1) + '/day'"></span>
+                                                    <span>•</span>
+                                                    <span x-text="pattern.affected_processes?.length + ' process(es)'"></span>
+                                                </div>
+                                                <span class="text-blue-600 dark:text-blue-400 font-medium">View details →</span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template x-if="!incidentHealth.historical_trends?.patterns?.length">
+                                <div class="text-center py-16">
+                                    <div class="inline-flex items-center justify-center w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full mb-4">
+                                        <i data-lucide="info" class="h-10 w-10 text-blue-500 dark:text-blue-400"></i>
+                                    </div>
+                                    <p class="text-lg font-bold text-blue-600 dark:text-blue-400 mb-2">No Historical Data</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                                        <template x-if="!incidentHealth.configuration?.history_enabled">
+                                            <span>History logging is disabled in Camunda configuration</span>
+                                        </template>
+                                        <template x-if="incidentHealth.configuration?.history_enabled">
+                                            <span>No historical patterns found in the analysis window</span>
+                                        </template>
+                                    </p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Recommendations Tab - Enhanced -->
+                        <div x-show="incidentTab === 'recommendations'" x-transition>
+                            <template x-if="incidentHealth.recommendations?.length > 0">
+                                <div class="space-y-3">
+                                    <template x-for="(rec, index) in incidentHealth.recommendations" :key="index">
+                                        <div class="p-5 rounded-xl border-l-4"
+                                             :class="{
+                                                 'bg-red-50 dark:bg-red-900/20 border-red-500': rec.priority === 'critical',
+                                                 'bg-orange-50 dark:bg-orange-900/20 border-orange-500': rec.priority === 'high',
+                                                 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-500': rec.priority === 'medium',
+                                                 'bg-blue-50 dark:bg-blue-900/20 border-blue-500': rec.priority === 'low'
+                                             }">
+                                            <div class="flex items-start gap-4">
+                                                <!-- Priority Badge -->
+                                                <div class="flex-shrink-0">
+                                                    <span class="inline-flex items-center justify-center w-12 h-12 rounded-full font-bold text-sm"
+                                                          :class="{
+                                                              'bg-red-600 text-white': rec.priority === 'critical',
+                                                              'bg-orange-600 text-white': rec.priority === 'high',
+                                                              'bg-yellow-600 text-white': rec.priority === 'medium',
+                                                              'bg-blue-600 text-white': rec.priority === 'low'
+                                                          }"
+                                                          x-text="`#${index + 1}`"></span>
+                                                </div>
+
+                                                <div class="flex-1">
+                                                    <!-- Header -->
+                                                    <div class="flex items-center gap-2 mb-2">
+                                                        <span class="text-xs px-3 py-1 rounded-full font-bold uppercase"
+                                                              :class="{
+                                                                  'bg-red-600 text-white': rec.priority === 'critical',
+                                                                  'bg-orange-600 text-white': rec.priority === 'high',
+                                                                  'bg-yellow-600 text-white': rec.priority === 'medium',
+                                                                  'bg-blue-600 text-white': rec.priority === 'low'
+                                                              }"
+                                                              x-text="rec.priority"></span>
+                                                        <span class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
+                                                              x-text="rec.category"></span>
+                                                    </div>
+
+                                                    <h4 class="text-base font-bold text-gray-900 dark:text-gray-100 mb-2"
+                                                        x-text="rec.title"></h4>
+                                                    <p class="text-sm text-gray-700 dark:text-gray-300 mb-3"
+                                                       x-text="rec.message"></p>
+
+                                                    <!-- Action Box -->
+                                                    <div class="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                                        <div class="flex items-start gap-2">
+                                                            <i data-lucide="arrow-right-circle" class="h-4 w-4 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5"></i>
+                                                            <div>
+                                                                <p class="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Recommended Action:</p>
+                                                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100"
+                                                                   x-text="rec.action"></p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Additional Details -->
+                                                    <template x-if="rec.details">
+                                                        <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                                            <template x-for="[key, value] in Object.entries(rec.details || {})" :key="key">
+                                                                <div class="bg-white dark:bg-gray-800 p-2 rounded">
+                                                                    <span class="text-gray-500 dark:text-gray-400"
+                                                                          x-text="key.replace(/_/g, ' ') + ':'"></span>
+                                                                    <span class="font-semibold text-gray-900 dark:text-gray-100 ml-1"
+                                                                          x-text="typeof value === 'object' ? JSON.stringify(value) : value"></span>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template x-if="!incidentHealth.recommendations?.length">
+                                <div class="text-center py-16">
+                                    <div class="inline-flex items-center justify-center w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full mb-4">
+                                        <i data-lucide="check-circle" class="h-10 w-10 text-green-500 dark:text-green-400"></i>
+                                    </div>
+                                    <p class="text-lg font-bold text-green-600 dark:text-green-400 mb-2">No Actions Needed</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">System operating within acceptable parameters</p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </template>
+    </div>
+
     <!-- Outlier Patterns & Extreme Variability -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <!-- High Outlier Processes (NEW) -->
+        <!-- High Outlier Processes -->
         <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow"
              x-intersect.once="!outlierPatterns && !outlierPatternsLoading && loadOutlierPatterns()">
             <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
@@ -184,7 +852,7 @@
                 </div>
             </template>
         </div>
-    </div> <!-- End grid for Outlier Patterns & Extreme Variability -->
+    </div>
 
     <!-- Process Anomalies, Incident Patterns & Bottlenecks -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
@@ -230,7 +898,7 @@
                                       'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400': anomaly.severity === 'low'
                                   }"
                                           x-text="anomaly.severity"></span>
-                                    <!-- NEW: Show if has sample instances -->
+                                    <!-- Show if has sample instances -->
                                     <template
                                             x-if="anomaly.sample_instances && anomaly.sample_instances.length > 0">
                                 <span class="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">
@@ -256,7 +924,7 @@
                                         🔴 Potential stuck/hanging process detected
                                     </p>
                                 </template>
-                                <!-- NEW: Click hint -->
+                                <!-- Click hint -->
                                 <p class="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">
                                     Click for sample instances →
                                 </p>
@@ -300,7 +968,7 @@
             <div class="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
                 <div class="flex items-center">
                     <i data-lucide="alert-circle" class="mr-2 h-4 w-4 text-orange-600"></i>
-                    <span>Top Incident Patterns</span>
+                    <span>Top Historical Incident Patterns</span>
                     <span class="group relative ml-2">
                                 <i data-lucide="info" class="h-4 w-4 text-gray-400 cursor-help"></i>
                                 <span class="hidden group-hover:block absolute left-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
@@ -323,7 +991,7 @@
             <div class="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
                 <template x-if="aiData.incidents && aiData.incidents.patterns?.length > 0">
                     <div>
-                        <!-- Root Cause Categories Summary (compact) -->
+                        <!-- Root Cause Categories Summary -->
                         <template
                                 x-if="aiData.incidents.root_cause_categories && Object.keys(aiData.incidents.root_cause_categories).length > 0">
                             <div class="mb-3 p-3 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
@@ -586,5 +1254,6 @@
                 </div>
             </template>
         </div>
-    </div> <!-- End grid for Bottlenecks & Stuck Processes -->
+    </div>
 </div>
+

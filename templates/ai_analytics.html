@@ -22,7 +22,7 @@
     <!-- AI Intelligence Layer -->
     <div class="bg-gradient-to-br from-sky-50 via-cyan-50 to-blue-50 dark:from-sky-900/20 dark:via-cyan-900/20 dark:to-blue-900/20 rounded-xl p-6 mb-6 border-2 border-sky-200 dark:border-sky-800 shadow-lg">
 
-        <!-- Header - Always Visible -->
+        <!-- Header -->
         <div class="flex items-center justify-between mb-6">
             <div class="flex items-center space-x-4">
                 <i data-lucide="brain" class="h-7 w-7 text-sky-600 dark:text-sky-400"></i>
@@ -38,7 +38,7 @@
             </div>
         </div>
 
-        <!-- AI Content - Lazy load when scrolled into view -->
+        <!-- AI Content -->
         <div x-intersect.once="!aiData && !aiLoading && loadAIInsights()">
 
             <!-- Loading State for AI Insights -->
@@ -176,11 +176,11 @@
     </div>  <!-- End of AI Intelligence Layer -->
 
     {% if ui_config.edition == 'oss' %}
-<!-- Enterprise Upgrade CTA - Collapsible -->
+<!-- Enterprise Upgrade - Collapsible -->
 <div x-data="{ upgradeExpanded: localStorage.getItem('upgradeExpanded') !== 'false' }"
      class="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border-2 border-purple-200 dark:border-purple-800 shadow-lg overflow-hidden">
 
-    <!-- Header - Always Visible -->
+    <!-- Header -->
     <div class="flex items-center justify-between p-4 cursor-pointer"
          @click="upgradeExpanded = !upgradeExpanded; localStorage.setItem('upgradeExpanded', upgradeExpanded)">
         <div class="flex items-center space-x-3">
@@ -285,7 +285,7 @@
                 durationPredictionsLoading: false,
                 durationPredictionsLoaded: false,
 
-                // New data block states
+                // Data block states
                 processCategories: null,
                 processCategoriesLoading: false,
                 stuckProcesses: null,
@@ -295,21 +295,32 @@
                 extremeVariability: null,
                 extremeVariabilityLoading: false,
 
-                // NEW: Activity Bottlenecks
+                // Activity Bottlenecks
                 activityBottlenecks: null,
                 activityBottlenecksLoading: false,
 
-                // NEW: Version History
+                // Version History
                 versionHistory: null,
                 versionHistoryLoading: false,
 
-                // NEW: Critical Insights
+                // Critical Insights
                 criticalInsights: null,
                 criticalInsightsLoading: false,
 
-                // NEW: Weekly Load Patterns
+                // Weekly Load Patterns
                 weeklyLoadPatterns: null,
                 weeklyLoadPatternsLoading: false,
+
+                // Incidents Details
+                incidentHealth: null,
+                incidentHealthLoading: false,
+                // current, recurring, patterns, recommendations
+                incidentTab: 'current',
+                selectedRecurringIssue: null,
+                incidentTimelineData: null,
+                // hourly or daily
+                timelineView: 'hourly',
+                timelineChart: null,
 
                 init() {
                     // Initialize base monitor
@@ -320,6 +331,13 @@
                     this.loadAIInsights();
 
                     this.$nextTick(() => lucide.createIcons());
+
+                    // Watch for timeline view changes
+                    this.$watch('timelineView', (newView) => {
+                        if (this.incidentTimelineData) {
+                            this.loadIncidentTimeline();
+                        }
+                    });
                 },
 
                 async refreshData() {
@@ -435,7 +453,7 @@
                     }
                 },
 
-                // NEW: Load Process Categories
+                // Load Process Categories
                 async loadProcessCategories() {
                     if (this.processCategoriesLoading) return;
 
@@ -453,7 +471,7 @@
                     }
                 },
 
-                // NEW: Load Stuck Processes
+                // Load Stuck Processes
                 async loadStuckProcesses() {
                     if (this.stuckProcessesLoading) return;
 
@@ -471,7 +489,7 @@
                     }
                 },
 
-                // NEW: Load Outlier Patterns
+                // Load Outlier Patterns
                 async loadOutlierPatterns() {
                     if (this.outlierPatternsLoading) return;
 
@@ -489,7 +507,7 @@
                     }
                 },
 
-                // NEW: Load Extreme Variability
+                // Load Extreme Variability
                 async loadExtremeVariability() {
                     if (this.extremeVariabilityLoading) return;
 
@@ -507,7 +525,7 @@
                     }
                 },
 
-                // NEW: Load Activity Bottlenecks
+                // Load Activity Bottlenecks
                 async loadActivityBottlenecks() {
                     if (this.activityBottlenecksLoading) return;
 
@@ -526,7 +544,7 @@
                     }
                 },
 
-                // NEW: Load Version History
+                // Load Version History
                 async loadVersionHistory() {
                     if (this.versionHistoryLoading) return;
 
@@ -551,7 +569,7 @@
                     }
                 },
 
-                // NEW: Load Critical Insights
+                // Load Critical Insights
                 async loadCriticalInsights() {
                     if (this.criticalInsightsLoading) return;
 
@@ -570,7 +588,7 @@
                     }
                 },
 
-                // NEW: Load Weekly Load Patterns
+                // Load Weekly Load Patterns
                 async loadWeeklyLoadPatterns() {
                     if (this.weeklyLoadPatternsLoading) return;
 
@@ -587,6 +605,228 @@
                         this.weeklyLoadPatternsLoading = false;
                         this.$nextTick(() => lucide.createIcons());
                     }
+                },
+
+                // Load comprehensive incident health
+                async loadIncidentHealth() {
+                    if (this.incidentHealthLoading) return;
+
+                    this.incidentHealthLoading = true;
+                    try {
+                        const response = await fetch('/api/ai/incident-health');
+                        if (response.ok) {
+                            this.incidentHealth = await response.json();
+                            console.log('Incident health loaded:', this.incidentHealth);
+
+                            // Load timeline after incident health
+                            await this.loadIncidentTimeline();
+                        }
+                    } catch (error) {
+                        console.error('Error loading incident health:', error);
+                    } finally {
+                        this.incidentHealthLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                // Load incident timeline
+                async loadIncidentTimeline() {
+                    try {
+                        const days = this.timelineView === 'daily' ? 30 : 7;
+                        const bucket = this.timelineView === 'daily' ? 'daily' : 'hour';
+
+                        const response = await fetch(`/api/ai/incident-timeline?days=${days}&bucket=${bucket}`);
+                        if (response.ok) {
+                            this.incidentTimelineData = await response.json();
+                            this.$nextTick(() => {
+                                this.renderTimelineChart();
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error loading incident timeline:', error);
+                    }
+                },
+
+                // Render timeline chart using Chart.js
+                renderTimelineChart() {
+                    if (!this.incidentTimelineData || !this.$refs.timelineCanvas) return;
+
+                    const ctx = this.$refs.timelineCanvas.getContext('2d');
+
+                    // Destroy existing chart
+                    if (this.timelineChart) {
+                        this.timelineChart.destroy();
+                    }
+
+                    const data = this.incidentTimelineData;
+
+                    // Format labels based on view
+                    const formattedLabels = data.labels.map(label => {
+                        const date = new Date(label);
+                        if (this.timelineView === 'daily') {
+                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        } else {
+                            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+                        }
+                    });
+
+                    // Color scheme for different incident types
+                    const typeColors = {
+                        'failedJob': 'rgb(239, 68, 68)',
+                        'failedExternalTask': 'rgb(249, 115, 22)',
+                        'errorEventSubprocess': 'rgb(234, 179, 8)',
+                        'messageBoundaryEvent': 'rgb(59, 130, 246)',
+                        'timerStartEvent': 'rgb(139, 92, 246)'
+                    };
+
+                    // Build datasets for each incident type
+                    const datasets = Object.keys(data.datasets).map(incType => ({
+                        label: incType,
+                        data: data.datasets[incType],
+                        backgroundColor: typeColors[incType] || 'rgb(107, 114, 128)',
+                        borderColor: typeColors[incType] || 'rgb(107, 114, 128)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: false
+                    }));
+
+                    // Add total line
+                    datasets.push({
+                        label: 'Total Incidents',
+                        data: data.total_series,
+                        backgroundColor: 'rgb(249, 115, 22)',
+                        borderColor: 'rgb(249, 115, 22)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        fill: false,
+                        borderDash: [5, 5]
+                    });
+
+                    this.timelineChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: formattedLabels,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                mode: 'index',
+                                intersect: false,
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'bottom',
+                                    labels: {
+                                        color: this.darkMode ? 'rgb(209, 213, 219)' : 'rgb(55, 65, 81)',
+                                        usePointStyle: true,
+                                        padding: 15,
+                                        font: {
+                                            size: 11
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: this.darkMode ? 'rgb(31, 41, 55)' : 'rgb(255, 255, 255)',
+                                    titleColor: this.darkMode ? 'rgb(243, 244, 246)' : 'rgb(17, 24, 39)',
+                                    bodyColor: this.darkMode ? 'rgb(209, 213, 219)' : 'rgb(55, 65, 81)',
+                                    borderColor: this.darkMode ? 'rgb(75, 85, 99)' : 'rgb(229, 231, 235)',
+                                    borderWidth: 1
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        color: this.darkMode ? 'rgb(156, 163, 175)' : 'rgb(107, 114, 128)',
+                                        stepSize: 1
+                                    },
+                                    grid: {
+                                        color: this.darkMode ? 'rgba(75, 85, 99, 0.2)' : 'rgba(229, 231, 235, 0.5)'
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        color: this.darkMode ? 'rgb(156, 163, 175)' : 'rgb(107, 114, 128)',
+                                        maxRotation: 45,
+                                        minRotation: 45
+                                    },
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+
+                // Export incidents to CSV
+                exportIncidentsToCsv() {
+                    if (!this.incidentHealth || !this.incidentHealth.current_state) {
+                        alert('No incident data to export');
+                        return;
+                    }
+
+                    const incidents = this.incidentHealth.current_state.active_incidents || [];
+
+                    if (incidents.length === 0) {
+                        alert('No active incidents to export');
+                        return;
+                    }
+
+                    // CSV Headers
+                    const headers = [
+                        'Incident ID',
+                        'Severity',
+                        'Severity Score',
+                        'Type',
+                        'Root Cause',
+                        'Process Key',
+                        'Business Key',
+                        'Activity',
+                        'Age (hours)',
+                        'Created',
+                        'Error Message'
+                    ];
+
+                    // CSV Rows
+                    const rows = incidents.map(inc => [
+                        inc.incident_id || inc.proc_inst_id_ || '',
+                        inc.severity || '',
+                        inc.severity_score || '',
+                        inc.incident_type_ || '',
+                        inc.root_cause || '',
+                        inc.process_key || '',
+                        inc.business_key || 'N/A',
+                        inc.activity_id_ || '',
+                        inc.age_hours?.toFixed(2) || '',
+                        inc.incident_timestamp_ ? new Date(inc.incident_timestamp_).toISOString() : '',
+                        (inc.incident_msg_ || '').replace(/"/g, '""') // Escape quotes
+                    ]);
+
+                    // Build CSV content
+                    let csvContent = headers.map(h => `"${h}"`).join(',') + '\n';
+                    csvContent += rows.map(row =>
+                        row.map(cell => `"${cell}"`).join(',')
+                    ).join('\n');
+
+                    // Create blob and download
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `camunda_incidents_${timestamp}.csv`);
+                    link.style.visibility = 'hidden';
+
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    console.log(`Exported ${incidents.length} incidents to CSV`);
                 },
 
                 // Helper: Get category description
@@ -621,7 +861,37 @@
 
                     // Sort by median duration (fastest first)
                     return processes.sort((a, b) => a.median_seconds - b.median_seconds);
+                },
+
+                getDataSourceLabel(source) {
+                    const labels = {
+                        'historical': 'Historical Incidents',
+                        'historical_incidents': 'Historical DB',
+                        'runtime_combined': 'Runtime Data',
+                        'job_exceptions': 'Job Logs',
+                        'failed_activities': 'Activity Failures',
+                        'none': 'No Data'
+                    };
+                    return labels[source] || source;
+                },
+
+                getDataSourceColor(source) {
+                    const colors = {
+                        'historical': 'green',
+                        'historical_incidents': 'green',
+                        'runtime_combined': 'blue',
+                        'job_exceptions': 'yellow',
+                        'failed_activities': 'orange',
+                        'none': 'gray'
+                    };
+                    return colors[source] || 'gray';
+                },
+
+                safeNumber(value, decimals = 1) {
+                    const num = parseFloat(value);
+                    return isNaN(num) ? 0 : num.toFixed(decimals);
                 }
+
             };
         }
     </script>

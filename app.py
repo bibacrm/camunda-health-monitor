@@ -258,7 +258,6 @@ def register_filters(app):
 
 
 # Create application instance
-# This is what Gunicorn will import: gunicorn app:app
 app = create_app()
 
 

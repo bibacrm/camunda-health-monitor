@@ -73,7 +73,7 @@ class DatabaseHelper:
 
             self._pool = pool_created[0]
 
-            # CRITICAL: Set _initialized = True BEFORE testing the connection
+            # Set _initialized = True BEFORE testing the connection
             self._initialized = True
 
             # Test the pool

@@ -1,7 +1,7 @@
 """
 AI/ML Service
 Intelligent analytics and predictions for Camunda cluster health
-Uses only historical data from ACT_HI_* and ACT_RU_* tables
+Uses mainly historical data from ACT_HI_* and ACT_RU_* tables
 """
 import logging
 import numpy as np
@@ -10,6 +10,7 @@ from typing import Optional
 from helpers.error_handler import safe_execute
 from helpers.db_helper import execute_query
 from services.database_service import timed_cache
+from datetime import datetime, timedelta
 
 logger = logging.getLogger('champa_monitor.ai_service')
 
@@ -449,7 +450,7 @@ class AIAnalytics:
     @timed_cache(seconds=3600)
     def get_process_categories(self, lookback_days=None):
         """
-        Categorize all processes by duration (Phase 1 of professional analysis)
+        Categorize all processes by duration
         Returns process categories for intelligent filtering
         """
         try:
@@ -553,7 +554,7 @@ class AIAnalytics:
             }
 
     # =========================================================================
-    # ANOMALY DETECTION (ENHANCED)
+    # ANOMALY DETECTION
     # =========================================================================
 
     @timed_cache(seconds=3600)
@@ -809,14 +810,1096 @@ class AIAnalytics:
             }
 
     # =========================================================================
-    # INCIDENT PATTERN ANALYSIS (ENHANCED)
+    # INCIDENT PATTERN ANALYSIS
     # =========================================================================
+
+    @timed_cache(seconds=1800)
+    def get_comprehensive_incident_health(self, lookback_days=None):
+        """
+        IMPROVED: Intelligently adapts to Camunda configuration
+        Automatically detects if history is enabled and chooses best data source
+        """
+        try:
+            if lookback_days is None:
+                lookback_days = self._get_config('AI_LOOKBACK_DAYS', 30)
+
+            # Step 1: Always get current runtime incidents
+            current_incidents = self._get_runtime_incidents(lookback_days)
+
+            # Step 2: Detect if history is enabled and get historical data
+            historical_data = self._get_historical_incidents_smart(lookback_days)
+
+            # Step 3: Merge runtime and historical (avoiding duplicates)
+            all_incidents = self._merge_incidents(current_incidents, historical_data)
+
+            # Step 4: Identify recurring issues
+            recurring_issues = self._identify_recurring_incidents_smart(
+                current_incidents,
+                historical_data
+            )
+
+            # Step 5: Score all incidents
+            scored_incidents = self._score_incident_severity(current_incidents)
+
+            # Step 6: Generate recommendations
+            recommendations = self._generate_incident_recommendations(
+                scored_incidents,
+                recurring_issues,
+                historical_data
+            )
+
+            return {
+                'current_state': {
+                    'active_incidents': scored_incidents,
+                    'total_active': len(current_incidents),
+                    'by_severity': self._group_by_severity(scored_incidents),
+                    'by_process': self._group_by_process(scored_incidents),
+                    'oldest_incident_hours': self._get_oldest_incident_age(current_incidents)
+                },
+                'historical_trends': {
+                    'patterns': historical_data.get('patterns', [])[:10],
+                    'total_incidents': historical_data.get('total_incidents', 0),
+                    'resolution_rate_pct': self._calculate_resolution_rate(historical_data),
+                    'avg_resolution_time_hours': self._calculate_avg_resolution_time(historical_data),
+                    'data_source': historical_data.get('data_source', 'unknown'),
+                    'history_enabled': historical_data.get('history_enabled', False)
+                },
+                'recurring_issues': recurring_issues,
+                'recommendations': recommendations,
+                'health_status': self._assess_incident_health(scored_incidents, historical_data),
+                'analysis_window_days': lookback_days,
+                'configuration': {
+                    'history_enabled': historical_data.get('history_enabled', False),
+                    'data_sources_used': historical_data.get('data_sources_used', []),
+                    'total_data_points': len(all_incidents)
+                },
+                'timestamp': datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting comprehensive incident health: {e}", exc_info=True)
+            return {
+                'current_state': {'active_incidents': [], 'total_active': 0},
+                'historical_trends': {},
+                'recurring_issues': [],
+                'recommendations': [],
+                'error': str(e)
+            }
+
+    def _get_historical_incidents_smart(self, lookback_days):
+        """
+        Automatically detect which data sources are available
+        Returns unified structure regardless of configuration
+        """
+        max_incidents = self._get_config('AI_MAX_INCIDENTS', 1000)
+        max_results = self._get_config('AI_UI_RESULTS_LIMIT', 20)
+        sample_limit = self._get_config('INCIDENT_PATTERN_SAMPLE_LIMIT', 5)
+
+        data_sources_used = []
+
+        # ===================================================================
+        # SOURCE 1: Try historical incidents (if history is enabled)
+        # ===================================================================
+        historical_incidents = self._try_get_historical_incidents(lookback_days, max_incidents)
+
+        if historical_incidents and len(historical_incidents) > 0:
+            logger.info(f"Found {len(historical_incidents)} historical incidents")
+            data_sources_used.append('historical_incidents')
+
+            # Process historical incidents
+            patterns = self._process_incidents_to_patterns(
+                historical_incidents,
+                sample_limit,
+                data_source='historical'
+            )
+
+            return {
+                'patterns': patterns[:max_results],
+                'total_incidents': len(historical_incidents),
+                'unique_patterns': len(patterns),
+                'total_open': sum(p['open_count'] for p in patterns),
+                'total_resolved': sum(p['resolved_count'] for p in patterns),
+                'root_cause_categories': self._extract_root_causes(patterns),
+                'analysis_window_days': lookback_days,
+                'data_source': 'historical',
+                'history_enabled': True,
+                'data_sources_used': data_sources_used,
+                'message': f'Found {len(patterns)} patterns from {len(historical_incidents)} historical incidents'
+            }
+
+        # ===================================================================
+        # SOURCE 2: Fallback to job exceptions + failed activities
+        # This works regardless of history configuration
+        # ===================================================================
+        logger.info("No historical incidents - using job logs and activity data")
+
+        # Get job exceptions (always available)
+        job_exceptions = self._try_get_job_exceptions(lookback_days, max_incidents)
+        if job_exceptions:
+            data_sources_used.append('job_exceptions')
+            logger.info(f"Found {len(job_exceptions)} job exceptions")
+
+        # Get failed activities (always available)
+        failed_activities = self._try_get_failed_activities(lookback_days, max_incidents)
+        if failed_activities:
+            data_sources_used.append('failed_activities')
+            logger.info(f"Found {len(failed_activities)} failed activities")
+
+        # Merge job exceptions and failed activities
+        combined_incidents = (job_exceptions or []) + (failed_activities or [])
+
+        if not combined_incidents:
+            return {
+                'patterns': [],
+                'total_incidents': 0,
+                'unique_patterns': 0,
+                'analysis_window_days': lookback_days,
+                'data_source': 'none',
+                'history_enabled': False,
+                'data_sources_used': [],
+                'message': f'✓ No incidents found in last {lookback_days} days - System is healthy!',
+                'health_status': 'excellent'
+            }
+
+        # Process combined incidents
+        patterns = self._process_incidents_to_patterns(
+            combined_incidents,
+            sample_limit,
+            data_source='runtime_combined'
+        )
+
+        return {
+            'patterns': patterns[:max_results],
+            'total_incidents': len(combined_incidents),
+            'unique_patterns': len(patterns),
+            'total_open': sum(p['open_count'] for p in patterns),
+            'total_resolved': sum(p['resolved_count'] for p in patterns),
+            'root_cause_categories': self._extract_root_causes(patterns),
+            'analysis_window_days': lookback_days,
+            'data_source': 'runtime_combined',
+            'history_enabled': False,
+            'data_sources_used': data_sources_used,
+            'message': f'Found {len(patterns)} patterns from {len(combined_incidents)} runtime data points (history disabled)'
+        }
+
+    def _try_get_historical_incidents(self, lookback_days, max_incidents):
+        """Try to get historical incidents - returns None if not available"""
+        query = f"""
+            SELECT 
+                inc.id_ as incident_id,
+                inc.incident_type_,
+                inc.incident_msg_,
+                inc.proc_def_key_,
+                inc.activity_id_,
+                inc.create_time_,
+                inc.end_time_,
+                inc.proc_inst_id_,
+                pi.business_key_,
+                CASE 
+                    WHEN inc.end_time_ IS NULL THEN 'open' 
+                    WHEN inc.incident_state_ = 2 THEN 'resolved'
+                    WHEN inc.removal_time_ IS NOT NULL THEN 'deleted'
+                    ELSE 'resolved' 
+                END as status,
+                EXTRACT(EPOCH FROM (COALESCE(inc.end_time_, NOW()) - inc.create_time_)) as duration_seconds
+            FROM act_hi_incident inc
+            LEFT JOIN act_hi_procinst pi ON inc.proc_inst_id_ = pi.id_
+            WHERE inc.create_time_ > NOW() - INTERVAL '{lookback_days} days'
+            ORDER BY inc.create_time_ DESC
+            LIMIT {max_incidents}
+        """
+
+        try:
+            results = execute_query(query)
+            return results if results and len(results) > 0 else None
+        except Exception as e:
+            logger.debug(f"Historical incidents not available: {e}")
+            return None
+
+    def _try_get_job_exceptions(self, lookback_days, max_incidents):
+        """Get job exceptions"""
+        query = f"""
+            SELECT 
+                jl.id_ as incident_id,
+                COALESCE(jl.job_def_type_, 'failedJob') as incident_type_,
+                jl.job_exception_msg_ as incident_msg_,
+                jl.process_def_key_ as proc_def_key_,
+                jl.act_id_ as activity_id_,
+                jl.timestamp_ as create_time_,
+                NULL as end_time_,
+                jl.process_instance_id_ as proc_inst_id_,
+                pi.business_key_,
+                CASE 
+                    WHEN jl.job_state_ = 2 THEN 'resolved'
+                    WHEN jl.job_retries_ = 0 THEN 'open'
+                    ELSE 'retrying'
+                END as status,
+                0 as duration_seconds
+            FROM act_hi_job_log jl
+            LEFT JOIN act_ru_execution pi ON jl.process_instance_id_ = pi.proc_inst_id_
+            WHERE jl.timestamp_ > NOW() - INTERVAL '{lookback_days} days'
+              AND jl.job_exception_msg_ IS NOT NULL
+              AND jl.job_exception_msg_ != ''
+            ORDER BY jl.timestamp_ DESC
+            LIMIT {max_incidents}
+        """
+
+        try:
+            results = execute_query(query)
+            return results if results and len(results) > 0 else None
+        except Exception as e:
+            logger.warning(f"Job exceptions query failed: {e}")
+            return None
+
+    def _try_get_failed_activities(self, lookback_days, max_incidents):
+        """Get failed/stuck activities"""
+        query = f"""
+            SELECT 
+                ai.id_ as incident_id,
+                ai.act_type_ as incident_type_,
+                CONCAT('Activity incomplete: ', ai.act_name_) as incident_msg_,
+                ai.proc_def_key_,
+                ai.act_id_ as activity_id_,
+                ai.start_time_ as create_time_,
+                ai.end_time_,
+                ai.proc_inst_id_,
+                pi.business_key_,
+                CASE 
+                    WHEN ai.end_time_ IS NULL THEN 'open' 
+                    ELSE 'resolved' 
+                END as status,
+                EXTRACT(EPOCH FROM (COALESCE(ai.end_time_, NOW()) - ai.start_time_)) as duration_seconds
+            FROM act_hi_actinst ai
+            LEFT JOIN act_ru_execution pi ON ai.proc_inst_id_ = pi.proc_inst_id_
+            WHERE ai.start_time_ > NOW() - INTERVAL '{lookback_days} days'
+              AND ai.end_time_ IS NULL
+              AND ai.act_type_ IN ('serviceTask', 'sendTask', 'businessRuleTask', 'scriptTask')
+            ORDER BY ai.start_time_ DESC
+            LIMIT {max_incidents}
+        """
+
+        try:
+            results = execute_query(query)
+            return results if results and len(results) > 0 else None
+        except Exception as e:
+            logger.warning(f"Failed activities query failed: {e}")
+            return None
+
+    def _process_incidents_to_patterns(self, incidents, sample_limit, data_source):
+        """
+        Unified processing: Convert raw incidents to patterns
+        Works with any incident source (historical, jobs, activities)
+        """
+        pattern_groups = defaultdict(lambda: {
+            'incidents': [],
+            'open_count': 0,
+            'resolved_count': 0,
+            'retrying_count': 0,
+            'total_duration': 0,
+            'sample_instances': []
+        })
+
+        for row in incidents:
+            incident_type = row.get('incident_type_') or 'Unknown Type'
+            incident_msg = (row.get('incident_msg_') or 'No error message')[:100]
+            key = f"{incident_type}:::{incident_msg}"
+
+            pattern_groups[key]['incidents'].append(row)
+
+            # Track status (handle all possible states)
+            status = row.get('status', 'unknown')
+            if status == 'open':
+                pattern_groups[key]['open_count'] += 1
+            elif status == 'resolved':
+                pattern_groups[key]['resolved_count'] += 1
+            elif status == 'retrying':
+                pattern_groups[key]['retrying_count'] += 1
+
+            # Track duration
+            duration = self._safe_float(row.get('duration_seconds'))
+            if duration and duration > 0:
+                pattern_groups[key]['total_duration'] += duration
+
+            # Store sample instances
+            if len(pattern_groups[key]['sample_instances']) < sample_limit:
+                pattern_groups[key]['sample_instances'].append({
+                    'instance_id': row.get('proc_inst_id_', 'N/A'),
+                    'business_key': row.get('business_key_', 'N/A'),
+                    'status': status,
+                    'create_time': row['create_time'].isoformat() if row.get('create_time') else None
+                })
+
+        # Convert to pattern list
+        patterns = []
+        for key, data in pattern_groups.items():
+            parts = key.split(':::', 1)
+            incident_type = parts[0] if len(parts) > 0 else 'Unknown'
+            msg = parts[1] if len(parts) > 1 else 'No message'
+
+            incidents = data['incidents']
+            affected_processes = list(set([i.get('proc_def_key_') for i in incidents if i.get('proc_def_key_')]))
+            affected_activities = list(set([i.get('activity_id_') for i in incidents if i.get('activity_id_')]))
+
+            timestamps = [i['create_time'] for i in incidents if i.get('create_time')]
+            first_seen = min(timestamps).isoformat() if timestamps else None
+            last_seen = max(timestamps).isoformat() if timestamps else None
+
+            total_count = len(incidents)
+            avg_duration = (data['total_duration'] / total_count) if total_count > 0 else 0
+
+            # Root cause analysis
+            root_cause = self._categorize_incident_root_cause(incident_type, msg)
+
+            patterns.append({
+                'incident_type': incident_type,
+                'error_message': msg,
+                'occurrence_count': total_count,
+                'open_count': data['open_count'],
+                'resolved_count': data['resolved_count'],
+                'retrying_count': data.get('retrying_count', 0),
+                'avg_duration_hours': round(avg_duration / 3600, 2) if avg_duration > 0 else 0,
+                'affected_processes': affected_processes[:5],
+                'affected_activities': affected_activities[:5],
+                'first_seen': first_seen,
+                'last_seen': last_seen,
+                'frequency_per_day': round(total_count / 30, 2),  # Rough estimate
+                'sample_instances': data['sample_instances'],
+                'root_cause': root_cause,
+                'source': data_source,
+                'health_status': self._classify_pattern_health(
+                    data['open_count'],
+                    data['resolved_count'],
+                    total_count
+                )
+            })
+
+        # Sort by occurrence count
+        patterns.sort(key=lambda x: x['occurrence_count'], reverse=True)
+        return patterns
+
+    def _classify_pattern_health(self, open_count, resolved_count, total_count):
+        """Classify health status of a pattern"""
+        if total_count == 0:
+            return 'unknown'
+
+        open_pct = (open_count / total_count) * 100
+
+        if open_pct > 50:
+            return 'critical'
+        elif open_pct > 20:
+            return 'degraded'
+        elif open_count > 0:
+            return 'warning'
+        else:
+            return 'healthy'
+
+    def _merge_incidents(self, current_incidents, historical_data):
+        """
+        Merge runtime and historical incidents, removing duplicates
+        """
+        all_incidents = list(current_incidents)  # Start with runtime
+
+        # Add historical patterns (if available)
+        historical_patterns = historical_data.get('patterns', [])
+        for pattern in historical_patterns:
+            for sample in pattern.get('sample_instances', []):
+                # Check if not already in current incidents
+                instance_id = sample.get('instance_id')
+                if instance_id and instance_id != 'N/A':
+                    if not any(inc.get('proc_inst_id_') == instance_id for inc in all_incidents):
+                        # Add as synthetic incident
+                        all_incidents.append({
+                            'proc_inst_id_': instance_id,
+                            'incident_type_': pattern['incident_type'],
+                            'incident_msg_': pattern['error_message'],
+                            'business_key': sample.get('business_key'),
+                            'status': sample.get('status'),
+                            'source': 'historical'
+                        })
+
+        return all_incidents
+
+    def _identify_recurring_incidents_smart(self, current_incidents, historical_data):
+        """
+        Works with both historical and runtime data
+        Identifies true recurring issues regardless of configuration
+        """
+        if not current_incidents:
+            return []
+
+        patterns = historical_data.get('patterns', [])
+        if not patterns:
+            # No historical data - can't identify recurring
+            # But can identify repeated runtime incidents
+            return self._identify_repeated_runtime_incidents(current_incidents)
+
+        # Original logic for when have historical data
+        recurring = []
+        similarity_threshold = self._get_config('INCIDENT_SIMILARITY_THRESHOLD', 0.7)
+
+        for current in current_incidents:
+            current_msg = (current.get('incident_msg_') or '')[:100]
+            current_type = current.get('incident_type_', 'unknown')
+
+            for pattern in patterns:
+                pattern_type = pattern.get('incident_type', '')
+                pattern_msg = (pattern.get('error_message') or '')[:100]
+
+                if pattern_type == current_type:
+                    similarity = self._calculate_similarity(current_msg, pattern_msg)
+
+                    if similarity > similarity_threshold:
+                        recurring.append({
+                            'incident_id': current.get('incident_id'),
+                            'incident_type': current_type,
+                            'error_message': current_msg,
+                            'activity_id': current.get('activity_id_', ''),
+                            'process_key': current.get('process_key'),
+                            'business_key': current.get('business_key'),
+                            'hours_open': current.get('hours_open'),
+                            'historical_occurrences': pattern.get('occurrence_count', 0),
+                            'historical_resolution_rate': (
+                                    pattern.get('resolved_count', 0) /
+                                    pattern.get('occurrence_count', 1) * 100
+                            ),
+                            'root_cause': pattern.get('root_cause', 'Unknown'),
+                            'priority': 'critical',
+                            'similarity_score': round(similarity * 100, 1),
+                            'recommendation': self._get_recurring_incident_recommendation(
+                                pattern, current
+                            )
+                        })
+                        break
+
+        return recurring
+
+    def _identify_repeated_runtime_incidents(self, current_incidents):
+        """
+        Fallback: Identify repeated incidents in runtime data only
+        Used when history is disabled
+        """
+        # Group by type + message similarity
+        groups = defaultdict(list)
+
+        for inc in current_incidents:
+            inc_type = inc.get('incident_type_', 'unknown')
+            inc_msg = (inc.get('incident_msg_') or '')[:50]  # Shorter for grouping
+            key = f"{inc_type}:{inc_msg}"
+            groups[key].append(inc)
+
+        # Find groups with multiple incidents (repeated)
+        repeated = []
+        for key, incidents in groups.items():
+            if len(incidents) > 1:  # Repeated at least once
+                # Take the oldest incident as the representative
+                oldest = min(incidents, key=lambda x: x.get('incident_timestamp_', datetime.max))
+
+                repeated.append({
+                    'incident_id': oldest.get('incident_id'),
+                    'incident_type': oldest.get('incident_type_', 'unknown'),
+                    'error_message': oldest.get('incident_msg_', ''),
+                    'activity_id': oldest.get('activity_id_', ''),
+                    'process_key': oldest.get('process_key'),
+                    'business_key': oldest.get('business_key'),
+                    'hours_open': float(oldest.get('hours_open', 0)),
+                    'historical_occurrences': len(incidents),  # Count in runtime
+                    'historical_resolution_rate': 0,  # Unknown without history
+                    'root_cause': self._categorize_incident_root_cause(
+                        oldest.get('incident_type_', ''),
+                        oldest.get('incident_msg_', '')
+                    ),
+                    'priority': 'high',
+                    'similarity_score': 100,  # Exact match in runtime
+                    'recommendation': f"This incident is currently repeating {len(incidents)} times. Investigate common cause immediately.",
+                    'note': 'Detected in runtime only (history disabled)'
+                })
+
+        return repeated
+
+    def _extract_root_causes(self, patterns):
+        """Extract root cause categories from patterns"""
+        root_cause_categories = defaultdict(int)
+        for pattern in patterns:
+            root_cause = pattern.get('root_cause', 'Unknown')
+            root_cause_categories[root_cause] += pattern.get('occurrence_count', 0)
+        return dict(root_cause_categories)
+
+    def _get_runtime_incidents(self, lookback_days):
+        """
+        Get current runtime incidents with enhanced context
+        IMPROVED: Better business key resolution and metadata
+        """
+        max_incidents = self._get_config('AI_MAX_INCIDENTS', 1000)
+
+        query = f"""
+            SELECT 
+                inc.id_ AS incident_id,
+                inc.incident_type_,
+                inc.activity_id_,
+                inc.incident_timestamp_,
+                inc.incident_msg_,
+                inc.proc_inst_id_,
+                inc.failed_activity_id_,
+                inc.execution_id_,
+                pd.key_ as process_key,
+                pd.name_ as process_name,
+                COALESCE(
+                    exec_main.business_key_, 
+                    exec_parent.business_key_,
+                    pi_hist.business_key_,
+                    'N/A'
+                ) AS business_key,
+                EXTRACT(EPOCH FROM (NOW() - inc.incident_timestamp_))/3600 as hours_open,
+                inc.job_def_id_,
+                inc.cause_incident_id_,
+                inc.root_cause_incident_id_,
+                inc.configuration_,
+                -- Get job details if it's a job incident
+                job.retries_ as job_retries,
+                job.exception_msg_ as job_exception_msg,
+                -- Get activity name
+                act.act_name_ as activity_name
+            FROM act_ru_incident inc
+            -- Main execution
+            JOIN act_ru_execution exec_main ON exec_main.id_ = inc.execution_id_
+            -- Process definition
+            JOIN act_re_procdef pd ON exec_main.proc_def_id_ = pd.id_
+            -- Parent execution (for business key fallback)
+            LEFT JOIN act_ru_execution exec_parent ON exec_main.parent_id_ = exec_parent.id_
+            -- Historical process instance (for business key fallback)
+            LEFT JOIN act_hi_procinst pi_hist ON exec_main.proc_inst_id_ = pi_hist.proc_inst_id_
+            -- Job details
+            LEFT JOIN act_ru_job job ON inc.job_def_id_ = job.job_def_id_ 
+                AND job.process_instance_id_ = inc.proc_inst_id_
+            -- Activity instance for activity name
+            LEFT JOIN act_hi_actinst act ON act.proc_inst_id_ = inc.proc_inst_id_ 
+                AND act.act_id_ = inc.activity_id_
+                AND act.end_time_ IS NULL
+            WHERE inc.incident_timestamp_ > NOW() - INTERVAL '{lookback_days} days'
+            ORDER BY inc.incident_timestamp_ ASC
+            LIMIT {max_incidents}
+        """
+
+        return safe_execute(
+            lambda: execute_query(query),
+            default_value=[],
+            context="Getting enhanced runtime incidents"
+        )
+
+    def _assess_incident_health(self, scored_incidents, historical_data):
+        """
+        Health assessment with granular levels
+        """
+        active_count = len(scored_incidents)
+        critical_count = len([i for i in scored_incidents if i.get('severity') == 'critical'])
+        high_count = len([i for i in scored_incidents if i.get('severity') == 'high'])
+
+        # Get historical context
+        total_historical = historical_data.get('total_incidents', 0)
+        resolved_historical = historical_data.get('total_resolved', 0)
+        resolution_rate = (resolved_historical / max(total_historical, 1)) * 100 if total_historical > 0 else 100
+
+        # Get config thresholds
+        critical_threshold = self._get_config('INCIDENT_HEALTH_CRITICAL_COUNT', 5)
+        degraded_threshold = self._get_config('INCIDENT_HEALTH_DEGRADED_COUNT', 10)
+        min_resolution = self._get_config('INCIDENT_HEALTH_MIN_RESOLUTION_RATE', 60)
+
+        # Calculate age factor (incidents open > 48h are concerning)
+        long_running = len([i for i in scored_incidents if i.get('age_hours', 0) > 48])
+
+        # Determine health status with priority hierarchy
+        if critical_count >= critical_threshold:
+            return 'critical'
+        elif long_running >= critical_threshold or active_count >= degraded_threshold * 2:
+            return 'critical'
+        elif high_count + critical_count >= degraded_threshold or resolution_rate < min_resolution:
+            return 'degraded'
+        elif active_count > 0 or resolution_rate < 80:
+            return 'warning'
+        else:
+            return 'healthy'
+
+    def _score_incident_severity(self, incidents):
+        """
+        Score incidents for priority (0-100)
+        Factors: age, type, recurrence, process criticality
+        """
+        scored = []
+
+        # Get config thresholds
+        critical_age = self._get_config('INCIDENT_SEVERITY_CRITICAL_AGE_HOURS', 72)
+        high_age = self._get_config('INCIDENT_SEVERITY_HIGH_AGE_HOURS', 24)
+        medium_age = self._get_config('INCIDENT_SEVERITY_MEDIUM_AGE_HOURS', 12)
+        warning_age = self._get_config('INCIDENT_SEVERITY_WARNING_AGE_HOURS', 4)
+
+        for inc in incidents:
+            hours_open = self._safe_float(inc.get('hours_open', 0)) or 0
+            incident_type = inc.get('incident_type_', 'unknown')
+
+            # Base severity by type (from config)
+            type_severity_map = self._get_config('INCIDENT_TYPE_SEVERITY_MAP', {
+                'failedJob': 50,
+                'failedExternalTask': 45,
+                'errorEventSubprocess': 40,
+                'messageBoundaryEvent': 35,
+                'timerStartEvent': 30
+            })
+            base_score = type_severity_map.get(incident_type, 40)
+
+            # Age multiplier (incidents open longer are more severe)
+            age_multiplier = 1.0
+            if hours_open > critical_age:
+                age_multiplier = 2.5
+            elif hours_open > high_age:
+                age_multiplier = 2.0
+            elif hours_open > medium_age:
+                age_multiplier = 1.5
+            elif hours_open > warning_age:
+                age_multiplier = 1.2
+
+            # Calculate final severity score
+            severity_score = min(100, base_score * age_multiplier)
+
+            # Classify severity level (configurable thresholds)
+            critical_threshold = self._get_config('INCIDENT_SEVERITY_CRITICAL_THRESHOLD', 80)
+            high_threshold = self._get_config('INCIDENT_SEVERITY_HIGH_THRESHOLD', 60)
+            medium_threshold = self._get_config('INCIDENT_SEVERITY_MEDIUM_THRESHOLD', 40)
+
+            if severity_score >= critical_threshold:
+                severity = 'critical'
+            elif severity_score >= high_threshold:
+                severity = 'high'
+            elif severity_score >= medium_threshold:
+                severity = 'medium'
+            else:
+                severity = 'low'
+
+            scored.append({
+                **inc,
+                'severity_score': round(severity_score, 1),
+                'severity': severity,
+                'age_hours': round(hours_open, 1),
+                'root_cause': self._categorize_incident_root_cause(
+                    incident_type,
+                    inc.get('incident_msg_', '')
+                )
+            })
+
+        # Sort by severity score (highest first)
+        scored.sort(key=lambda x: x['severity_score'], reverse=True)
+        return scored
+
+    def _identify_recurring_incidents(self, current_incidents, historical_patterns):
+        """
+        Identify incidents that appear in both current and historical
+        These are high-priority as they indicate unresolved root causes
+        """
+        recurring = []
+
+        # Get similarity threshold from config
+        similarity_threshold = self._get_config('INCIDENT_SIMILARITY_THRESHOLD', 0.7)
+        low_resolution_threshold = self._get_config('RECURRING_LOW_RESOLUTION_THRESHOLD', 50)
+
+        for current in current_incidents:
+            current_msg = (current.get('incident_msg_') or '')[:100]
+            current_type = current.get('incident_type_', 'unknown')
+            current_activity = current.get('activity_id_', '')
+
+            # Find matching pattern in historical
+            for pattern in historical_patterns:
+                pattern_type = pattern.get('incident_type', '')
+                pattern_msg = (pattern.get('error_message') or '')[:100]
+
+                # Match if type is same and message is similar
+                if pattern_type == current_type:
+                    similarity = self._calculate_similarity(current_msg, pattern_msg)
+
+                    if similarity > similarity_threshold:
+                        recurring.append({
+                            'incident_id': current.get('incident_id'),
+                            'incident_type': current_type,
+                            'error_message': current_msg,
+                            'activity_id': current_activity,
+                            'process_key': current.get('process_key'),
+                            'business_key': current.get('business_key'),
+                            'hours_open': current.get('hours_open'),
+                            'historical_occurrences': pattern.get('occurrence_count', 0),
+                            'historical_resolution_rate': (
+                                    pattern.get('resolved_count', 0) /
+                                    pattern.get('occurrence_count', 1) * 100
+                            ),
+                            'root_cause': pattern.get('root_cause', 'Unknown'),
+                            'priority': 'critical',
+                            'similarity_score': round(similarity * 100, 1),
+                            'recommendation': self._get_recurring_incident_recommendation(
+                                pattern, current
+                            )
+                        })
+                        break
+
+        return recurring
+
+    def _calculate_similarity(self, str1, str2):
+        """
+        Similarity calculation using multiple techniques
+        Combines Jaccard, n-gram, and keyword matching for better accuracy
+        """
+        if not str1 or not str2:
+            return 0.0
+
+        str1_lower = str1.lower()
+        str2_lower = str2.lower()
+
+        # 1. Exact match
+        if str1_lower == str2_lower:
+            return 1.0
+
+        # 2. Substring containment (one contains the other)
+        if str1_lower in str2_lower or str2_lower in str1_lower:
+            shorter = min(len(str1_lower), len(str2_lower))
+            longer = max(len(str1_lower), len(str2_lower))
+            return 0.8 + (0.2 * (shorter / longer))
+
+        # 3. Word-level Jaccard similarity
+        words1 = set(str1_lower.split())
+        words2 = set(str2_lower.split())
+        intersection = words1.intersection(words2)
+        union = words1.union(words2)
+        jaccard_score = len(intersection) / len(union) if union else 0.0
+
+        # 4. Character n-gram similarity (trigrams)
+        def get_ngrams(text, n=3):
+            text = text.replace(' ', '')
+            return set([text[i:i + n] for i in range(len(text) - n + 1)])
+
+        ngrams1 = get_ngrams(str1_lower)
+        ngrams2 = get_ngrams(str2_lower)
+
+        if ngrams1 and ngrams2:
+            ngram_intersection = ngrams1.intersection(ngrams2)
+            ngram_union = ngrams1.union(ngrams2)
+            ngram_score = len(ngram_intersection) / len(ngram_union) if ngram_union else 0.0
+        else:
+            ngram_score = 0.0
+
+        # 5. Key technical terms matching (weighted heavily)
+        # Common error keywords that are significant
+        key_terms = {
+            'timeout', 'connection', 'refused', 'deadlock', 'null', 'exception',
+            'failed', 'error', 'invalid', 'unauthorized', 'forbidden', 'socket',
+            'database', 'sql', 'jdbc', 'http', 'rest', 'api', 'network'
+        }
+
+        terms1 = words1.intersection(key_terms)
+        terms2 = words2.intersection(key_terms)
+
+        if terms1 or terms2:
+            term_union = terms1.union(terms2)
+            term_intersection = terms1.intersection(terms2)
+            term_score = len(term_intersection) / len(term_union) if term_union else 0.0
+        else:
+            term_score = 0.0
+
+        # 6. Weighted combination
+        # Jaccard (40%), n-gram (30%), key terms (30%)
+        final_score = (jaccard_score * 0.4) + (ngram_score * 0.3) + (term_score * 0.3)
+
+        return min(1.0, final_score)
+
+    def _generate_incident_recommendations(self, scored_incidents, recurring_issues, historical_data):
+        """
+        Granular and actionable recommendations
+        """
+        recommendations = []
+
+        # 1. CRITICAL: Recurring incidents with low resolution
+        if recurring_issues:
+            critical_recurring = [r for r in recurring_issues
+                                  if r.get('historical_resolution_rate', 100) < 50]
+            if critical_recurring:
+                # Group by root cause for targeted action
+                by_root_cause = {}
+                for issue in critical_recurring:
+                    rc = issue.get('root_cause', 'Unknown')
+                    if rc not in by_root_cause:
+                        by_root_cause[rc] = []
+                    by_root_cause[rc].append(issue)
+
+                for root_cause, issues in by_root_cause.items():
+                    recommendations.append({
+                        'priority': 'critical',
+                        'category': 'recurring_incidents',
+                        'title': f'{len(issues)} Recurring {root_cause} Issues',
+                        'message': f'Resolution rate < 50%. These keep happening without permanent fixes.',
+                        'affected_processes': list(set([i['process_key'] for i in issues])),
+                        'action': self._get_root_cause_action(root_cause),
+                        'incident_ids': [i['incident_id'] for i in issues],
+                        'details': {
+                            'root_cause': root_cause,
+                            'total_occurrences': sum(i.get('historical_occurrences', 0) for i in issues),
+                            'avg_resolution_rate': sum(i.get('historical_resolution_rate', 0) for i in issues) / len(
+                                issues)
+                        }
+                    })
+
+        # 2. HIGH: Long-running incidents (>48h)
+        very_old = [i for i in scored_incidents if i.get('age_hours', 0) > 48]
+        if very_old:
+            recommendations.append({
+                'priority': 'high',
+                'category': 'aging_incidents',
+                'title': f'{len(very_old)} Incidents Open > 48 Hours',
+                'message': f'Oldest: {max([i.get("age_hours", 0) for i in very_old]):.1f}h - Immediate resolution needed',
+                'action': 'Escalate to senior engineers and prioritize resolution',
+                'incident_ids': [i['incident_id'] for i in very_old][:10],  # Top 10
+                'details': {
+                    'oldest_age': max([i.get("age_hours", 0) for i in very_old]),
+                    'by_severity': {
+                        'critical': len([i for i in very_old if i.get('severity') == 'critical']),
+                        'high': len([i for i in very_old if i.get('severity') == 'high'])
+                    }
+                }
+            })
+
+        # 3. MEDIUM: Aging incidents (24-48h)
+        aging = [i for i in scored_incidents if 24 <= i.get('age_hours', 0) <= 48]
+        if aging:
+            recommendations.append({
+                'priority': 'medium',
+                'category': 'aging_incidents',
+                'title': f'{len(aging)} Incidents Approaching Critical Age (24-48h)',
+                'message': 'Review and resolve before they become critical',
+                'action': 'Assign owners and set resolution deadlines',
+                'incident_ids': [i['incident_id'] for i in aging][:10]
+            })
+
+        # 4. Group by root cause for pattern detection
+        root_cause_counts = {}
+        for inc in scored_incidents:
+            cause = inc.get('root_cause', 'Unknown')
+            if cause not in root_cause_counts:
+                root_cause_counts[cause] = {'count': 0, 'severities': []}
+            root_cause_counts[cause]['count'] += 1
+            root_cause_counts[cause]['severities'].append(inc.get('severity', 'low'))
+
+        # Find dominant root cause
+        if root_cause_counts:
+            top_cause = max(root_cause_counts.items(), key=lambda x: x[1]['count'])
+            if top_cause[1]['count'] >= 3:
+                critical_in_cause = top_cause[1]['severities'].count('critical')
+                priority = 'high' if critical_in_cause > 0 else 'medium'
+
+                recommendations.append({
+                    'priority': priority,
+                    'category': 'root_cause_pattern',
+                    'title': f'Pattern Detected: {top_cause[0]} ({top_cause[1]["count"]} incidents)',
+                    'message': f'{critical_in_cause} critical incidents share this root cause',
+                    'action': self._get_root_cause_action(top_cause[0]),
+                    'details': {
+                        'root_cause': top_cause[0],
+                        'count': top_cause[1]['count'],
+                        'severity_breakdown': {
+                            'critical': top_cause[1]['severities'].count('critical'),
+                            'high': top_cause[1]['severities'].count('high'),
+                            'medium': top_cause[1]['severities'].count('medium'),
+                            'low': top_cause[1]['severities'].count('low')
+                        }
+                    }
+                })
+
+        # 5. Check incident creation rate
+        if historical_data.get('total_incidents', 0) > 0:
+            lookback = historical_data.get('analysis_window_days', 30)
+            daily_rate = historical_data['total_incidents'] / max(lookback, 1)
+
+            if daily_rate > 10:
+                recommendations.append({
+                    'priority': 'high',
+                    'category': 'incident_rate',
+                    'title': f'High Incident Creation Rate: {daily_rate:.1f}/day',
+                    'message': 'System generating incidents faster than resolution capacity',
+                    'action': 'Implement preventive measures: better error handling, input validation, retry mechanisms',
+                    'details': {
+                        'daily_rate': round(daily_rate, 2),
+                        'weekly_rate': round(daily_rate * 7, 1),
+                        'trend': 'increasing' if daily_rate > 5 else 'stable'
+                    }
+                })
+            elif daily_rate > 5:
+                recommendations.append({
+                    'priority': 'medium',
+                    'category': 'incident_rate',
+                    'title': f'Elevated Incident Rate: {daily_rate:.1f}/day',
+                    'message': 'Monitor trend - may need preventive action if rate increases',
+                    'action': 'Review error patterns and implement automated recovery where possible'
+                })
+
+        # 6. Process-specific recommendations
+        process_incidents = {}
+        for inc in scored_incidents:
+            proc = inc.get('process_key', 'unknown')
+            if proc not in process_incidents:
+                process_incidents[proc] = []
+            process_incidents[proc].append(inc)
+
+        # Find processes with multiple critical incidents
+        for process_key, incidents in process_incidents.items():
+            critical_count = len([i for i in incidents if i.get('severity') == 'critical'])
+            if critical_count >= 3:
+                recommendations.append({
+                    'priority': 'high',
+                    'category': 'process_health',
+                    'title': f'Process at Risk: {process_key}',
+                    'message': f'{critical_count} critical incidents in this process',
+                    'action': f'Review process definition, error boundaries, and external dependencies for {process_key}',
+                    'affected_processes': [process_key],
+                    'details': {
+                        'total_incidents': len(incidents),
+                        'critical': critical_count,
+                        'avg_age_hours': sum(i.get('age_hours', 0) for i in incidents) / len(incidents)
+                    }
+                })
+
+        # Default if no recommendations
+        if not recommendations:
+            recommendations.append({
+                'priority': 'low',
+                'category': 'general',
+                'message': 'No critical issues detected - Continue standard monitoring',
+                'action': 'Maintain current incident response procedures'
+            })
+
+        return recommendations
+
+    def _get_recurring_incident_recommendation(self, pattern, current):
+        """Get specific recommendation for recurring incident"""
+        resolution_rate = (
+                pattern.get('resolved_count', 0) /
+                pattern.get('occurrence_count', 1) * 100
+        )
+
+        if resolution_rate < 30:
+            return f"CRITICAL: This incident has occurred {pattern.get('occurrence_count', 0)} times with only {resolution_rate:.0f}% resolution rate. Implement permanent fix immediately."
+        elif resolution_rate < 70:
+            return f"WARNING: Recurring incident ({pattern.get('occurrence_count', 0)}x) with {resolution_rate:.0f}% resolution. Review error handling and add retry logic."
+        else:
+            return f"This incident pattern has been seen {pattern.get('occurrence_count', 0)} times but usually resolves. Monitor for changes."
+
+    def _get_root_cause_action(self, root_cause):
+        """Get recommended action for root cause category"""
+        actions = {
+            'Database': 'Review database connection pool settings, query performance, and connection timeout configurations',
+            'External Service': 'Implement circuit breakers, increase timeouts, add retry logic with exponential backoff',
+            'Business Logic': 'Review validation rules, add defensive coding, improve error messages',
+            'Configuration': 'Audit configuration files, implement configuration validation, use environment-specific configs',
+            'Resource': 'Scale infrastructure, optimize memory usage, review thread pool configurations',
+            'Authorization': 'Review security policies, check service account permissions, audit access controls',
+            'Timeout': 'Increase timeout thresholds, implement async processing, add progress indicators',
+            'Job Execution': 'Review retry configuration, increase job priority, optimize job execution'
+        }
+        return actions.get(root_cause, 'Investigate root cause and implement appropriate fixes')
+
+    def _get_critical_alerts(self, scored_incidents, recurring_issues):
+        """Get list of critical alerts requiring immediate attention"""
+        alerts = []
+
+        # Critical severity incidents
+        critical = [i for i in scored_incidents if i.get('severity') == 'critical']
+        if critical:
+            alerts.append({
+                'type': 'critical_severity',
+                'count': len(critical),
+                'message': f'{len(critical)} critical severity incidents require immediate attention',
+                'incidents': critical[:5]  # Top 5
+            })
+
+        # Recurring issues
+        if recurring_issues:
+            alerts.append({
+                'type': 'recurring',
+                'count': len(recurring_issues),
+                'message': f'{len(recurring_issues)} recurring incidents indicate systemic issues',
+                'incidents': recurring_issues[:5]
+            })
+
+        return alerts
+
+    def _assess_incident_health(self, scored_incidents, historical_patterns):
+        """Assess overall incident health status"""
+        active_count = len(scored_incidents)
+        critical_count = len([i for i in scored_incidents if i.get('severity') == 'critical'])
+
+        total_historical = historical_patterns.get('total_incidents', 0)
+        resolved_historical = historical_patterns.get('total_resolved', 0)
+        resolution_rate = (resolved_historical / max(total_historical, 1)) * 100
+
+        if critical_count > 5:
+            return 'critical'
+        elif active_count > 10 or resolution_rate < 60:
+            return 'degraded'
+        elif active_count > 0:
+            return 'warning'
+        else:
+            return 'healthy'
+
+    def _calculate_resolution_rate(self, historical_patterns):
+        """Calculate resolution rate from historical patterns"""
+        total = historical_patterns.get('total_incidents', 0)
+        resolved = historical_patterns.get('total_resolved', 0)
+        return round((resolved / max(total, 1)) * 100, 1)
+
+    def _calculate_avg_resolution_time(self, historical_patterns):
+        """Calculate average resolution time from patterns"""
+        patterns = historical_patterns.get('patterns', [])
+        if not patterns:
+            return 0
+
+        total_hours = 0
+        resolved_count = 0
+
+        for pattern in patterns:
+            resolved = pattern.get('resolved_count', 0)
+            avg_duration = pattern.get('avg_duration_hours', 0)
+
+            if resolved > 0 and avg_duration > 0:
+                total_hours += avg_duration * resolved
+                resolved_count += resolved
+
+        return round(total_hours / max(resolved_count, 1), 2)
+
+    def _group_by_severity(self, incidents):
+        """Group incidents by severity level"""
+        grouped = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+        for inc in incidents:
+            severity = inc.get('severity', 'low')
+            grouped[severity] = grouped.get(severity, 0) + 1
+        return grouped
+
+    def _group_by_process(self, incidents):
+        """Group incidents by process definition"""
+        grouped = {}
+        for inc in incidents:
+            proc = inc.get('process_key', 'unknown')
+            if proc not in grouped:
+                grouped[proc] = {'count': 0, 'incidents': []}
+            grouped[proc]['count'] += 1
+            grouped[proc]['incidents'].append(inc['incident_id'])
+
+        # Return top 10 processes
+        return dict(sorted(grouped.items(), key=lambda x: x[1]['count'], reverse=True)[:10])
+
+    def _get_oldest_incident_age(self, incidents):
+        """Get age of oldest incident in hours"""
+        if not incidents:
+            return 0
+        ages = [self._safe_float(i.get('hours_open', 0)) for i in incidents]
+        return round(max(ages) if ages else 0, 1)
 
     @timed_cache(seconds=3600)
     def analyze_incident_patterns(self, lookback_days=None):
         """
         Cluster similar incidents using text analysis
-        Enhanced with business keys, status tracking, and sample instances
+        incl. business keys, status tracking, and sample instances
         """
         try:
             if lookback_days is None:
@@ -828,23 +1911,29 @@ class AIAnalytics:
 
             # First try historical incidents with full context
             query = f"""
-                SELECT 
-                    inc.incident_type_,
-                    inc.incident_msg_,
-                    inc.proc_def_key_,
-                    inc.activity_id_,
-                    inc.create_time_,
-                    inc.end_time_,
-                    inc.proc_inst_id_,
-                    pi.business_key_,
-                    CASE WHEN inc.end_time_ IS NULL THEN 'open' ELSE 'resolved' END as status,
-                    EXTRACT(EPOCH FROM (COALESCE(inc.end_time_, NOW()) - inc.create_time_)) as duration_seconds
-                FROM act_hi_incident inc
-                LEFT JOIN act_hi_procinst pi ON inc.proc_inst_id_ = pi.id_
-                WHERE inc.create_time_ > NOW() - INTERVAL '{lookback_days} days'
-                ORDER BY inc.create_time_ DESC
-                LIMIT {max_incidents}
-            """
+                        SELECT
+                            inc.id_ as incident_id,
+                            inc.incident_type_,
+                            inc.incident_msg_,
+                            inc.proc_def_key_,
+                            inc.activity_id_,
+                            inc.create_time_,
+                            inc.end_time_,
+                            inc.proc_inst_id_,
+                            pi.business_key_,
+                            CASE
+                                WHEN inc.end_time_ IS NULL THEN 'open'
+                                WHEN inc.incident_state_ = 2 THEN 'resolved'
+                                WHEN inc.removal_time_ IS NOT NULL THEN 'deleted'
+                                ELSE 'resolved'
+                            END as status,
+                            EXTRACT(EPOCH FROM (COALESCE(inc.end_time_, NOW()) - inc.create_time_)) as duration_seconds
+                        FROM act_hi_incident inc
+                        LEFT JOIN act_hi_procinst pi ON inc.proc_inst_id_ = pi.id_
+                        WHERE inc.create_time_ > NOW() - INTERVAL '{lookback_days} days'
+                        ORDER BY inc.create_time_ DESC
+                        LIMIT {max_incidents}
+                    """
 
             results = safe_execute(
                 lambda: execute_query(query),
@@ -857,7 +1946,7 @@ class AIAnalytics:
                 logger.info("No historical incidents found, analyzing runtime job exceptions")
 
                 query_fallback = f"""
-                    SELECT 
+                    SELECT
                         COALESCE(jl.job_def_type_, 'unknown') as incident_type_,
                         jl.job_exception_msg_ as incident_msg_,
                         jl.process_def_key_ as proc_def_key_,
@@ -890,7 +1979,7 @@ class AIAnalytics:
                     logger.info("No job exceptions found, analyzing activity failures")
 
                     query_activities = f"""
-                        SELECT 
+                        SELECT
                             ai.act_type_ as incident_type_,
                             'Activity did not complete' as incident_msg_,
                             ai.proc_def_key_,
@@ -1041,7 +2130,7 @@ class AIAnalytics:
     def analyze_extreme_variability(self, process_categories=None):
         """
         Detect processes with extreme P95/Median ratios (dangerously unpredictable)
-        ENHANCED: Now includes sample slow instances with business keys
+        Includes sample slow instances with business keys
         """
         try:
             if process_categories is None:
@@ -1080,9 +2169,9 @@ class AIAnalytics:
                     else:
                         severity = 'medium'
 
-                    # ENHANCEMENT: Get sample slow instances
+                    # Get sample slow instances
                     sample_query = f"""
-                        SELECT 
+                        SELECT
                             id_ as instance_id,
                             business_key_,
                             EXTRACT(EPOCH FROM (end_time_ - start_time_)) as duration_s,
@@ -1194,7 +2283,7 @@ class AIAnalytics:
 
             query = f"""
                 WITH running AS (
-                    SELECT 
+                    SELECT
                         pi.id_ as instance_id,
                         pi.proc_def_key_,
                         pi.business_key_,
@@ -1202,9 +2291,9 @@ class AIAnalytics:
                         EXTRACT(EPOCH FROM (NOW() - pi.start_time_)) as current_duration_seconds
                     FROM act_hi_procinst pi
                     WHERE pi.end_time_ IS NULL
-                ), 
+                ),
                 base AS (
-                    SELECT 
+                    SELECT
                         proc_def_key_,
                         AVG(EXTRACT(EPOCH FROM (end_time_ - start_time_))) as avg_dur,
                         PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (end_time_ - start_time_))) as p95_dur,
@@ -1215,7 +2304,7 @@ class AIAnalytics:
                     GROUP BY proc_def_key_
                     HAVING COUNT(*) >= {min_instances}
                 )
-                SELECT 
+                SELECT
                     r.instance_id,
                     r.proc_def_key_,
                     r.business_key_,
@@ -1331,7 +2420,7 @@ class AIAnalytics:
     def _get_stuck_recommendation(self, severity: str, max_running_seconds: float, stuck_count: int) -> str:
         """Generate recommendation for stuck processes"""
         hours = max_running_seconds / 3600
-        
+
         if severity == 'critical':
             return f"CRITICAL: {stuck_count} instance(s) stuck for up to {hours:.1f}h - Terminate or investigate immediately to prevent resource exhaustion"
         elif severity == 'warning':
@@ -1347,7 +2436,7 @@ class AIAnalytics:
     def analyze_outlier_patterns(self, lookback_days=None):
         """
         IQR-based outlier detection for each process
-        ENHANCED: Now includes extreme outlier tracking, sample instances, and process category filtering
+        Includes extreme outlier tracking, sample instances, and process category filtering
         """
         try:
             if lookback_days is None:
@@ -1371,7 +2460,7 @@ class AIAnalytics:
 
             # Get quartile data for business-critical processes only
             query = f"""
-                SELECT 
+                SELECT
                     proc_def_key_,
                     COUNT(*) as total_count,
                     PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (end_time_ - start_time_))) as q1,
@@ -1419,7 +2508,7 @@ class AIAnalytics:
 
                 # Count actual outliers AND extreme outliers
                 outlier_query = f"""
-                    SELECT 
+                    SELECT
                         COUNT(*) as outlier_count,
                         COUNT(CASE WHEN d > {extreme_upper} THEN 1 END) as extreme_count
                     FROM (
@@ -1450,11 +2539,11 @@ class AIAnalytics:
                 else:
                     severity = 'low'
 
-                # ENHANCEMENT: Get sample outlier instances if high severity
+                # Get sample outlier instances if high severity
                 sample_outliers = []
                 if severity in ['high', 'medium'] and outlier_count > 0:
                     sample_query = f"""
-                        SELECT 
+                        SELECT
                             id_ as instance_id,
                             business_key_,
                             EXTRACT(EPOCH FROM (end_time_ - start_time_)) as duration_s,
@@ -1536,7 +2625,7 @@ class AIAnalytics:
 
     def generate_critical_insights_summary(self, analysis_data: dict) -> dict:
         """
-        Generate critical insights summary based on analysis (from analyze_db_data.py)
+        Generate critical insights summary
         Provides executive-ready, actionable insights
         """
         try:
@@ -1729,15 +2818,15 @@ class AIAnalytics:
             return 'critical'
 
     # =========================================================================
-    # BOTTLENECK IDENTIFICATION (ENHANCED)
+    # BOTTLENECK IDENTIFICATION
     # =========================================================================
 
     @timed_cache(seconds=3600)
     def identify_bottlenecks(self, lookback_days=None):
         """
         Identify process bottlenecks by analyzing activity durations
-        Enhanced with activity types, CV, and specific recommendations
-        ENHANCED: Now filters to business-critical processes only for better performance
+        incl. activity types, CV, and specific recommendations
+        Filters to business-critical processes only for better performance
         """
         try:
             if lookback_days is None:
@@ -1757,7 +2846,7 @@ class AIAnalytics:
                 process_filter = f"AND proc_def_key_ IN ('{process_list}')"
 
             query = f"""
-                SELECT 
+                SELECT
                     proc_def_key_,
                     act_id_ as activity_id,
                     act_name_ as activity_name,
@@ -1873,7 +2962,7 @@ class AIAnalytics:
     def predict_job_failures(self, lookback_days=None):
         """
         Analyze job failure patterns and predict failure-prone jobs
-        ENHANCED: Now filters to business-critical processes only for better performance
+        Filters to business-critical processes only for better performance
         """
         try:
             if lookback_days is None:
@@ -1896,11 +2985,11 @@ class AIAnalytics:
 
             # First try standard job log approach
             query = f"""
-                SELECT 
+                SELECT
                     COALESCE(job_def_type_, 'unknown') as job_def_type_,
                     job_def_configuration_,
                     process_def_key_,
-                    CASE 
+                    CASE
                         WHEN job_exception_msg_ IS NOT NULL AND job_exception_msg_ != '' THEN 'failed'
                         ELSE 'success'
                     END as state,
@@ -1929,7 +3018,7 @@ class AIAnalytics:
                     activity_process_filter = f"AND proc_def_key_ IN ('{process_list}')"
 
                 query_fallback = f"""
-                    SELECT 
+                    SELECT
                         act_type_ as job_type,
                         proc_def_key_,
                         COUNT(*) as total,
@@ -2171,7 +3260,7 @@ class AIAnalytics:
     def get_process_leaderboard(self, lookback_days=None):
         """
         Performance leaderboard for process definitions
-        ENHANCED: Now filters to business-critical processes only for better performance
+        Filters to business-critical processes only for better performance
         """
         try:
             if lookback_days is None:
@@ -2198,7 +3287,7 @@ class AIAnalytics:
             grade_d_completion = self._get_config('PROCESS_GRADE_D_COMPLETION_PCT', 70.0)
 
             query = f"""
-                SELECT 
+                SELECT
                     proc_def_key_,
                     COUNT(*) as instance_count,
                     AVG(EXTRACT(EPOCH FROM (end_time_ - start_time_)) * 1000) as avg_duration_ms,
@@ -2295,7 +3384,7 @@ class AIAnalytics:
             warning_hours = threshold_hours * (warning_threshold_pct / 100)
 
             query = f"""
-                SELECT 
+                SELECT
                     t.id_,
                     t.name_,
                     t.proc_def_id_,
@@ -2452,3 +3541,5 @@ _ai_analytics = AIAnalytics()
 def get_ai_analytics():
     """Get the AI analytics singleton"""
     return _ai_analytics
+
+

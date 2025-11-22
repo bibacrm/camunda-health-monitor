@@ -101,11 +101,11 @@ spec:
         - name: CAMUNDA_NODE_2_URL
           value: "http://camunda-node2:8080/engine-rest"
 
-        # Optional JMX endpoints
-        # - name: JMX_NODE_1_URL
-        #   value: "http://camunda-node1:9090/metrics"
-        # - name: JMX_NODE_2_URL
-        #   value: "http://camunda-node2:9090/metrics"
+        # JMX endpoints
+        - name: JMX_NODE_1_URL
+          value: "http://camunda-node1:9090/metrics"
+        - name: JMX_NODE_2_URL
+          value: "http://camunda-node2:9090/metrics"
 
         # Resource limits
         resources:

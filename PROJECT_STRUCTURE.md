@@ -48,27 +48,30 @@ camunda-health-monitor/
 │         Browser (UI)                │
 │  Alpine.js + Tailwind CSS           │
 │  - Main Dashboard                   │
-│  - AI Intelligence Layer (NEW!)     │
+│  - AI Intelligence Layer            │
 └────────────┬────────────────────────┘
              │ HTTP/JSON
              ▼
 ┌─────────────────────────────────────┐
 │      Routes (HTTP Handlers)         │
 │  main.py, api.py, metrics.py        │
-│  - /api/ai/* endpoints (NEW!)       │
-│  - Prometheus AI metrics (NEW!)     │
+│  - /api/ai/* endpoints              │
+│  - Prometheus AI metrics            │
 └────────────┬────────────────────────┘
              │ Function calls
              ▼
-┌─────────────────────────────────────┐
-│     Services (Business Logic)       │
-│  - camunda_service                  │
-│  - database_service                 │
-│  - ai_service (NEW!)                │
-│    • Anomaly Detection              │
-│    • Pattern Recognition            │
-│    • Predictive Analytics           │
-└─────┬──────────────────┬────────────┘
+┌──────────────────────────────────────┐
+│     Services (Business Logic)        │
+│  - camunda_service                   │
+│  - database_service                  │
+│  - ai_service                        │
+│    • Anomaly Detection               │
+│    • Pattern Recognition             │
+│    • Predictive Analytics            │
+│    • Performance scoring and rankings│
+│    • Bottleneck identification       │
+│    • Health score calculations       │
+└─────┬──────────────────┬─────────────┘
       │                  │
       │ DB queries       │ REST API calls
       ▼                  ▼
@@ -104,7 +107,7 @@ camunda-health-monitor/
 - Parallel data collection
 - Metrics aggregation
 - Error handling with circuit breakers
-- **AI/ML Analytics** (NEW!):
+- **AI/ML Analytics**:
   - Anomaly detection using statistical analysis
   - Incident pattern recognition with clustering
   - Predictive analytics for job failures and SLA breaches
@@ -153,7 +156,7 @@ Kubernetes → metrics.py
   ← Return 200 (ready) or 503 (not ready)
 ```
 
-### AI Insights (`/api/ai/insights`) - NEW!
+### AI Insights (`/api/ai/insights`)
 
 ```
 Browser → api.py → ai_service.get_ai_insights()
@@ -184,7 +187,7 @@ Browser → api.py → ai_service.get_ai_insights()
 ← Return comprehensive JSON
 ```
 
-### Prometheus AI Metrics (`/metrics`) - NEW!
+### Prometheus AI Metrics (`/metrics`)
 
 ```
 Prometheus → metrics.py → _collect_ai_metrics_for_prometheus()
@@ -247,7 +250,7 @@ JSON_LOGGING=false
 SSL_VERIFY=false
 STUCK_INSTANCE_DAYS=7
 
-# AI/ML Configuration
+# AI/ML Main Configuration
 AI_LOOKBACK_DAYS=30                     # Historical analysis window for all AI features
 AI_MAX_INSTANCES=50000                  # Max instances to query for AI analysis
 AI_MAX_INCIDENTS=1000                   # Max incidents for pattern recognition
